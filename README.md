@@ -28,7 +28,7 @@ Ein **Bildkonvertierungs-Tool** für Python mit moderner GUI (CustomTkinter) und
 ## 🚀 Installation
 
 ```bash
-git clone https://github.com/QG1o/PicConverter.git
+git clone https://github.com/0xGI0/PicConverter.git
 cd PicConverter
 pip install -r requirements.txt
 ```
