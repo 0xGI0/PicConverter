@@ -1,148 +1,96 @@
 # 🖼️ PicConverter
 
-[![Python](https://img.shields.io/badge/Python-3.7+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.8+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
+[![CustomTkinter](https://img.shields.io/badge/GUI-CustomTkinter-1f538d?style=flat)](https://github.com/TomSchimansky/CustomTkinter)
 [![Pillow](https://img.shields.io/badge/Pillow-10.0+-92C83E?style=flat)](https://python-pillow.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Ein vielseitiges **Bildkonvertierungs-Tool** für Python mit zwei Benutzeroberflächen: CLI für Automatisierung und GUI für einfache Bedienung.
+Ein **Bildkonvertierungs-Tool** für Python mit moderner GUI (CustomTkinter) und CLI für Automatisierung. Konvertiert zwischen allen gängigen Bildformaten, mit Qualitätsregelung, Größenänderung und Größenprognose.
+
+![Screenshot](screenshot.png)
 
 ---
 
 ## ✨ Features
 
-- ✅ **Alle gängigen Bildformate**: JPEG, PNG, BMP, TIFF, GIF, WebP, ICO
-- ✅ **Anpassbare Qualität/Kompression**: Optimieren Sie die Dateigröße nach Ihren Bedürfnissen
-- ✅ **Auflösungsänderung**: Passen Sie die Bildgröße präzise an
-- ✅ **Größenprognose**: Sehen Sie die geschätzte Ausgabegröße vor der Konvertierung
-- ✅ **Modernes dunkles Design**: Angenehme GUI mit Card-basiertem Layout
-- ✅ **Zwei Modi**: CLI für Skripte/Automatisierung, GUI für interaktive Nutzung
-- ✅ **Bildvorschau**: Sehen Sie Ihr Bild vor der Konvertierung (nur GUI)
-- ✅ **Seitenverhältnis**: Optional beibehalten bei Größenänderung
-
----
-
-## 📋 Voraussetzungen
-
-- **Python 3.7+**
-- **Pillow** (Bildverarbeitung)
-- **tkinter** (für GUI - meist bereits in Python enthalten)
+- **Alle gängigen Bildformate**: JPEG, PNG, BMP, TIFF, GIF, WebP, ICO
+- **Moderne Oberfläche**: CustomTkinter mit Dark Mode (Standard) und umschaltbarem Light Mode
+- **Drag & Drop**: Bilddateien einfach ins Fenster ziehen
+- **Live-Vorschau** und detaillierte Bildinformationen
+- **Anpassbare Qualität/Kompression** je nach Zielformat
+- **Auflösungsänderung** mit optionalem Erhalt des Seitenverhältnisses
+- **Größenprognose** vor der Konvertierung
+- **Fortschrittsanzeige und Statusleiste**: Jeder Schritt und jeder Fehler wird sichtbar gemeldet
+- **Zwei Modi**: GUI für interaktive Nutzung, CLI für Skripte und Automatisierung
 
 ---
 
 ## 🚀 Installation
 
-### 1. Repository klonen
-
 ```bash
 git clone https://github.com/QG1o/PicConverter.git
 cd PicConverter
+pip install -r requirements.txt
 ```
 
-### 2. Pillow installieren
+Das installiert:
+
+| Paket | Zweck |
+|-------|-------|
+| `Pillow` | Bildverarbeitung |
+| `customtkinter` | Moderne GUI |
+| `tkinterdnd2` | Drag & Drop (optional — die GUI läuft auch ohne) |
+
+**Hinweis (Linux):** tkinter selbst wird über den Paketmanager installiert, falls es fehlt:
 
 ```bash
-pip install Pillow
+sudo apt-get install python3-tk    # Ubuntu/Debian
+sudo dnf install python3-tkinter   # Fedora/RHEL
+sudo pacman -S tk                  # Arch Linux
 ```
-
-### 3. tkinter installieren (falls nicht vorhanden)
-
-**tkinter ist normalerweise bereits in Python enthalten!** Falls es fehlt:
-
-**Linux:**
-```bash
-# Ubuntu/Debian
-sudo apt-get install python3-tk
-
-# Fedora/RHEL
-sudo dnf install python3-tkinter
-
-# Arch Linux
-sudo pacman -S tk
-```
-
-**macOS/Windows:**
-- Bereits in Python enthalten ✓
 
 ---
 
 ## 💻 Verwendung
 
-### 🎨 GUI-Version (Grafische Oberfläche)
+### 🎨 GUI
 
-**Starten:**
 ```bash
 python picconverter_gui.py
 ```
 
-**Bedienung:**
-1. ✅ Klicken Sie auf **"Datei auswählen"** und wählen Sie ein Bild
-2. ✅ Wählen Sie das gewünschte **Ausgabeformat**
-3. ✅ Passen Sie **Qualität/Kompression** an (falls verfügbar)
-4. ✅ Optional: Geben Sie neue **Auflösung** ein
-5. ✅ Klicken Sie auf **"Größe schätzen"** für eine Prognose
-6. ✅ Klicken Sie auf **"🚀 Konvertieren starten"**
+1. Bild **per Drag & Drop** ins Fenster ziehen oder über **„Datei auswählen"** laden
+2. **Ausgabeformat** wählen
+3. **Qualität/Kompression** anpassen (falls das Format es unterstützt)
+4. Optional: neue **Auflösung** eingeben
+5. Optional: **„Größe schätzen"** für eine Prognose
+6. **„Konvertieren starten"** — Fortschritt und Ergebnis erscheinen direkt in der GUI
 
-**Design-Highlights:**
-- 🎨 Modernes dunkles Theme
-- 📱 Card-basiertes Interface
-- 👁️ Live-Bildvorschau
-- 📊 Detaillierte Bildinformationen
-- ⚡ Intuitive Bedienung
+Über den Schalter oben rechts lässt sich zwischen **Dunkel** und **Hell** umschalten.
 
----
+### ⌨️ CLI
 
-### ⌨️ CLI-Version (Kommandozeile)
-
-**Grundlegende Syntax:**
 ```bash
 python picconverter_cli.py <eingabedatei> -f <format> [optionen]
 ```
 
-#### 📚 Beispiele:
+**Beispiele:**
 
-**Einfache Konvertierung:**
 ```bash
 # JPG zu PNG
 python picconverter_cli.py foto.jpg -f png
 
-# PNG zu WebP
-python picconverter_cli.py bild.png -f webp
-```
-
-**Mit Qualitätseinstellung:**
-```bash
-# JPEG mit 90% Qualität
-python picconverter_cli.py foto.jpg -f jpg -q 90
-
 # WebP mit 85% Qualität
 python picconverter_cli.py bild.png -f webp -q 85
-```
 
-**Mit Auflösungsänderung:**
-```bash
-# Auf 1920x1080 skalieren
-python picconverter_cli.py bild.jpg -f png -w 1920 --height 1080
+# Auf 1920x1080 skalieren, Ausgabedatei festlegen
+python picconverter_cli.py foto.png -f jpg -q 95 -w 1920 --height 1080 -o ergebnis.jpg
 
-# Nur Breite angeben (Höhe wird berechnet)
-python picconverter_cli.py foto.jpg -f jpg -w 800
-```
-
-**Nur Größenprognose (ohne zu konvertieren):**
-```bash
+# Nur Größenprognose (ohne zu konvertieren)
 python picconverter_cli.py bild.jpg -f webp -q 85 --estimate
 ```
 
-**Ausgabedatei festlegen:**
-```bash
-python picconverter_cli.py input.png -f jpg -q 90 -o mein_output.jpg
-```
-
-**Alles kombiniert:**
-```bash
-python picconverter_cli.py foto.png -f jpg -q 95 -w 1920 --height 1080 -o ergebnis.jpg
-```
-
-#### ⚙️ Verfügbare Optionen:
+**Optionen:**
 
 | Option | Kürzel | Beschreibung | Beispiel |
 |--------|--------|--------------|----------|
@@ -153,7 +101,7 @@ python picconverter_cli.py foto.png -f jpg -q 95 -w 1920 --height 1080 -o ergebn
 | `--height` | | Höhe in Pixeln | `--height 1080` |
 | `--estimate` | | Nur Größe schätzen | `--estimate` |
 
-**Hinweis:** `-h` ist für `--help` reserviert, daher verwenden wir `--height` für die Höhe.
+**Hinweis:** `-h` ist für `--help` reserviert, daher `--height` für die Höhe.
 
 ---
 
@@ -161,19 +109,18 @@ python picconverter_cli.py foto.png -f jpg -q 95 -w 1920 --height 1080 -o ergebn
 
 | Format | Eingabe | Ausgabe | Qualitätseinstellung | Bereich |
 |--------|---------|---------|---------------------|---------|
-| **JPEG** | ✅ | ✅ | Qualität | 1-100 |
-| **PNG** | ✅ | ✅ | Kompression | 0-9 |
-| **WebP** | ✅ | ✅ | Qualität | 0-100 |
-| **BMP** | ✅ | ✅ | - | - |
-| **TIFF** | ✅ | ✅ | Kompression | 0-9 |
-| **GIF** | ✅ | ✅ | - | - |
-| **ICO** | ✅ | ✅ | - | - |
+| **JPEG** | ✅ | ✅ | Qualität | 1–100 |
+| **PNG** | ✅ | ✅ | Kompression | 0–9 |
+| **WebP** | ✅ | ✅ | Qualität | 0–100 |
+| **BMP** | ✅ | ✅ | – | – |
+| **TIFF** | ✅ | ✅ | Kompression | 0–9 |
+| **GIF** | ✅ | ✅ | – | – |
+| **ICO** | ✅ | ✅ | – | – |
 
-### 📝 Qualitätshinweise:
-
-- **JPEG/WebP**: Höhere Werte = bessere Qualität (Standard: 85)
+- **JPEG/WebP**: Höhere Werte = bessere Qualität (Standard: 85 bzw. 80)
 - **PNG**: Niedrigere Werte = bessere Qualität (Standard: 6)
 - **TIFF**: LZW-Kompression wird automatisch angewendet
+- **Transparenz**: JPEG und BMP unterstützen keine Transparenz — sie wird automatisch durch Weiß ersetzt
 
 ---
 
@@ -181,101 +128,56 @@ python picconverter_cli.py foto.png -f jpg -q 95 -w 1920 --height 1080 -o ergebn
 
 | Komponente | Details |
 |-----------|---------|
-| **Python-Version** | 3.7+ |
-| **Hauptbibliothek** | Pillow (PIL) |
-| **GUI-Framework** | tkinter |
-| **Resampling-Methode** | LANCZOS (höchste Qualität) |
-| **Transparenz** | Automatische Konvertierung für JPEG/BMP |
-
----
-
-## 🎯 Anwendungsfälle
-
-**Perfekt für:**
-- 📸 Batch-Konvertierung von Fotos
-- 🖼️ Web-Optimierung (PNG → WebP)
-- 📱 Größenanpassung für Social Media
-- 💾 Komprimierung großer Bildsammlungen
-- 🔄 Format-Konvertierung für Kompatibilität
-- 📊 Automatisierung in Python-Skripten
+| **Python-Version** | 3.8+ |
+| **Bildverarbeitung** | Pillow (PIL) |
+| **GUI-Framework** | CustomTkinter |
+| **Drag & Drop** | tkinterdnd2 (optional) |
+| **Resampling** | LANCZOS (höchste Qualität) |
 
 ---
 
 ## 🐛 Fehlerbehebung
 
-### Problem: "ImageTk konnte nicht importiert werden"
+**`ModuleNotFoundError: No module named 'customtkinter'` (oder `'PIL'`)**
 
-**Lösung:**
 ```bash
-# tkinter nachinstallieren (Linux)
-sudo apt-get install python3-tk  # Ubuntu/Debian
+pip install -r requirements.txt
+```
+
+**„ImageTk konnte nicht importiert werden"**
+
+```bash
+sudo apt-get install python3-tk   # Ubuntu/Debian
 sudo dnf install python3-tkinter  # Fedora/RHEL
+# oder: pip install --ignore-installed Pillow
 ```
 
-### Problem: "ModuleNotFoundError: No module named 'PIL'"
+**GUI ist zu klein oder zu groß (HiDPI)**
 
-**Lösung:**
+Die Skalierung wird unter Linux automatisch aus der System-DPI erkannt. Falls das Ergebnis nicht passt, lässt sich der Faktor manuell setzen:
+
 ```bash
-pip install Pillow
+PICCONVERTER_SCALE=1.5 python picconverter_gui.py
 ```
 
-### Problem: Transparenz wird schwarz dargestellt
+**Drag & Drop funktioniert nicht**
 
-**Erklärung:** JPEG und BMP unterstützen keine Transparenz. PicConverter konvertiert transparent automatisch zu weiß.
+Die GUI läuft auch ohne — für Drag & Drop `tkinterdnd2` installieren:
+
+```bash
+pip install tkinterdnd2
+```
+
+---
+
+## 🤝 Beitragen
+
+Beiträge sind willkommen! Fork das Repository, erstelle einen Feature-Branch und öffne einen Pull Request.
+
+**Feature-Ideen:** Batch-Verarbeitung, Export-Presets (z.B. „Web optimiert"), Metadaten-Erhaltung
 
 ---
 
 ## 📄 Lizenz
 
 Dieses Projekt steht unter der [MIT-Lizenz](LICENSE).
-
-Die MIT-Lizenz erlaubt:
-- ✅ Kommerzielle Nutzung
-- ✅ Modifikation
-- ✅ Verteilung
-- ✅ Private Nutzung
-
----
-
-## 🤝 Beitragen
-
-Beiträge sind willkommen! 
-
-**So kannst du helfen:**
-1. 🍴 Fork das Repository
-2. 🌿 Erstelle einen Feature-Branch (`git checkout -b feature/NeuesFeature`)
-3. ✅ Committe deine Änderungen (`git commit -m 'Neues Feature hinzugefügt'`)
-4. 📤 Push zum Branch (`git push origin feature/NeuesFeature`)
-5. 🔃 Öffne einen Pull Request
-
-**Feature-Ideen:**
-- Batch-Verarbeitung mehrerer Dateien
-- Zusätzliche Filter und Effekte
-- Export-Presets (z.B. "Web optimiert")
-- Metadaten-Erhaltung
-
----
-
-## 💡 Tipps & Tricks
-
-**Optimale Einstellungen für:**
-
-| Zweck | Format | Qualität | Empfehlung |
-|-------|--------|----------|------------|
-| Web (klein) | WebP | 75-85 | Beste Balance |
-| Web (Standard) | JPEG | 85-90 | Gute Qualität |
-| Druck | PNG/TIFF | 9 | Verlustfrei |
-| Archivierung | PNG | 6-9 | Verlustfrei |
-| Social Media | JPEG | 90-95 | Hohe Qualität |
-
----
-
-## 👨‍💻 Autor
-
-Erstellt mit ❤️ für die Open-Source-Community
-
----
-
-## ⭐ Star dieses Repo!
-
-Wenn dir PicConverter gefällt, gib dem Projekt einen Stern! ⭐
