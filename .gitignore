@@ -145,3 +145,8 @@ Thumbs.db
 *.ico
 !test_images/*
 !screenshot.png
+
+# App-Icon und README-Screenshots (Ausnahmen von *.png/*.ico oben)
+!screenshot-exif.png
+!assets/icon.png
+!assets/icon.ico
