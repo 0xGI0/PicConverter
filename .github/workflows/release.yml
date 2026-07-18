@@ -1,0 +1,84 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Abhängigkeiten installieren
+        run: |
+          python -m pip install --upgrade pip
+          pip install Pillow customtkinter tkinterdnd2 PyMuPDF pillow-heif pyinstaller
+      - name: GUI-Binary bauen
+        run: >
+          pyinstaller --noconfirm --onefile --windowed --name PicConverter
+          --collect-all customtkinter --collect-all tkinterdnd2
+          picconverter_gui.py
+      - name: CLI-Binary bauen
+        run: >
+          pyinstaller --noconfirm --onefile --name picconverter-cli
+          picconverter_cli.py
+      - name: Archiv erstellen
+        run: |
+          cd dist
+          tar czf PicConverter-${{ github.ref_name }}-linux-x86_64.tar.gz \
+            PicConverter picconverter-cli
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: dist/*.tar.gz
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Abhängigkeiten installieren
+        run: |
+          python -m pip install --upgrade pip
+          pip install Pillow customtkinter tkinterdnd2 PyMuPDF pillow-heif pyinstaller
+      - name: GUI-Binary bauen
+        run: >
+          pyinstaller --noconfirm --onefile --windowed --name PicConverter
+          --icon assets/icon.ico
+          --collect-all customtkinter --collect-all tkinterdnd2
+          picconverter_gui.py
+      - name: CLI-Binary bauen
+        run: >
+          pyinstaller --noconfirm --onefile --name picconverter-cli
+          --icon assets/icon.ico
+          picconverter_cli.py
+      - name: Umbenennen
+        run: |
+          Move-Item dist/PicConverter.exe dist/PicConverter-${{ github.ref_name }}-windows.exe
+          Move-Item dist/picconverter-cli.exe dist/picconverter-cli-${{ github.ref_name }}-windows.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: dist/*.exe
+
+  release:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist
+      - name: GitHub-Release erstellen
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
