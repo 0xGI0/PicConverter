@@ -11,6 +11,15 @@ Ein **Bild- & PDF-Konvertierungs-Tool** für Python mit moderner GUI (CustomTkin
 
 ![Screenshot](screenshot.png)
 
+<details>
+<summary>📸 Mehr Screenshots</summary>
+
+**EXIF-Editor** — Metadaten ansehen, Felder ändern oder löschen:
+
+![EXIF-Editor](screenshot-exif.png)
+
+</details>
+
 ---
 
 ## ✨ Features

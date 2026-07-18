@@ -11,6 +11,15 @@ An **image & PDF conversion tool** for Python with a modern GUI (CustomTkinter) 
 
 ![Screenshot](screenshot.png)
 
+<details>
+<summary>📸 More screenshots</summary>
+
+**EXIF editor** — view metadata, edit or delete fields:
+
+![EXIF editor](screenshot-exif.png)
+
+</details>
+
 ---
 
 ## ✨ Features
