@@ -267,10 +267,7 @@ def apply_watermark(img, text=None, image_path=None, position='unten-rechts',
 
     if text:
         font_size = max(16, base.width // 25)
-        try:
-            font = ImageFont.truetype("DejaVuSans-Bold.ttf", font_size)
-        except OSError:
-            font = ImageFont.load_default()
+        font = _watermark_font(font_size)
         draw = ImageDraw.Draw(overlay)
         bbox = draw.textbbox((0, 0), text, font=font)
         mark_w, mark_h = bbox[2] - bbox[0], bbox[3] - bbox[1]
@@ -291,6 +288,20 @@ def apply_watermark(img, text=None, image_path=None, position='unten-rechts',
 
     result = Image.alpha_composite(base, overlay)
     return result if img.mode == 'RGBA' else result.convert('RGB')
+
+
+def _watermark_font(size):
+    """Sucht eine fette TrueType-Schrift; fällt auf Pillows Standardschrift zurück"""
+    for name in ("DejaVuSans-Bold.ttf", "NotoSans-Bold.ttf", "LiberationSans-Bold.ttf",
+                 "arialbd.ttf", "Arial Bold.ttf"):
+        try:
+            return ImageFont.truetype(name, size)
+        except OSError:
+            continue
+    try:
+        return ImageFont.load_default(size)
+    except TypeError:  # Pillow < 10.1 kennt den size-Parameter nicht
+        return ImageFont.load_default()
 
 
 def _watermark_xy(base_size, mark_size, position, margin):

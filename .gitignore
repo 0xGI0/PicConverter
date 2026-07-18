@@ -146,7 +146,9 @@ Thumbs.db
 !test_images/*
 !screenshot.png
 
-# App-Icon und README-Screenshots (Ausnahmen von *.png/*.ico oben)
+# App-Icon, Logo und README-Screenshots (Ausnahmen von *.png/*.ico oben)
 !screenshot-exif.png
 !assets/icon.png
 !assets/icon.ico
+!assets/logo-light.png
+!assets/logo-dark.png
