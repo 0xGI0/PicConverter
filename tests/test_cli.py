@@ -8,6 +8,9 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+import picconverter_core as core  # noqa: E402
+
 CLI = Path(__file__).parent.parent / 'picconverter_cli.py'
 
 
@@ -109,7 +112,7 @@ def test_pdf_alle_seiten(tmp_path):
 def test_version():
     result = run_cli('--version')
     assert result.returncode == 0
-    assert 'PicConverter 2.0.0' in result.stdout
+    assert f'PicConverter {core.__version__}' in result.stdout
 
 
 def test_ueberschreibschutz(sample_jpg, tmp_path):
