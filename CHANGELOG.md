@@ -9,8 +9,11 @@ Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 ### Geändert
 - **GUI von CustomTkinter auf PySide6 (Qt 6) portiert** — komplett neues,
   flaches Design mit eigenem hellen/dunklen Theme (folgt weiterhin dem
-  System), Logo-Wortmarke im Header, dezente Sektionstitel statt Emojis,
+  System), Logo-Wortmarke, dezente Sektionstitel statt Emojis,
   ein einheitlicher Azur-Akzent
+- **Neues Sidebar-Layout**: Warteschlange links, große Vorschau-Bühne in
+  der Mitte (mit zentraler Drop-Fläche im Leerzustand), Einstellungen als
+  luftiges Panel rechts — statt des bisherigen Zwei-Spalten-Kartenrasters
 - Drag & Drop jetzt nativ über Qt (tkinterdnd2 entfällt), native
   Dateidialoge (KDE/GNOME-Portale)
 - HiDPI-Skalierung übernimmt Qt automatisch — unter Wayland pro Monitor;

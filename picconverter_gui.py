@@ -16,8 +16,8 @@ try:
                                    QDialog, QFileDialog, QFrame, QHBoxLayout,
                                    QInputDialog, QLabel, QLineEdit, QListWidget,
                                    QListWidgetItem, QMainWindow, QPlainTextEdit,
-                                   QProgressBar, QPushButton, QSlider, QVBoxLayout,
-                                   QWidget)
+                                   QProgressBar, QPushButton, QScrollArea, QSlider,
+                                   QStackedWidget, QVBoxLayout, QWidget)
 except ImportError:
     print("Fehler: PySide6 konnte nicht importiert werden.", file=sys.stderr)
     print("\nBitte installieren Sie die Abhängigkeiten:", file=sys.stderr)
@@ -71,6 +71,7 @@ PAD = 16  # Einheitlicher Abstand zwischen Sektionen
 THEMES = {
     'light': {
         'window': '#f2f3f5',
+        'sidebar': '#e9ebef',
         'card': '#ffffff',
         'field': '#f5f6f8',
         'border': '#dfe2e7',
@@ -91,6 +92,7 @@ THEMES = {
     },
     'dark': {
         'window': '#191b1e',
+        'sidebar': '#141619',
         'card': '#212428',
         'field': '#2a2e33',
         'border': '#34383e',
@@ -151,6 +153,22 @@ def build_stylesheet(t):
         background: {t['card']};
         border: 1px solid {t['border']};
         border-radius: 10px;
+    }}
+    QFrame#sidebar {{
+        background: {t['sidebar']};
+        border-right: 1px solid {t['border']};
+    }}
+    QFrame#divider {{
+        background: {t['border']};
+        border: none;
+    }}
+    QScrollArea#panelScroll {{
+        background: transparent;
+        border: none;
+        border-left: 1px solid {t['border']};
+    }}
+    QScrollArea#panelScroll > QWidget > QWidget {{
+        background: transparent;
     }}
     QFrame#dropZone {{
         background: {t['field']};
@@ -311,10 +329,9 @@ def build_stylesheet(t):
         border-radius: 4px;
     }}
     QListWidget#fileList {{
-        background: {t['field']};
-        border: 1px solid {t['border']};
-        border-radius: 8px;
-        padding: 4px;
+        background: transparent;
+        border: none;
+        padding: 0px;
         outline: none;
     }}
     QListWidget#fileList::item {{
@@ -409,10 +426,10 @@ def repolish(widget):
 class PreviewLabel(QLabel):
     """Vorschau-Label, das sein Bild seitenverhältnistreu mitskaliert"""
 
-    def __init__(self, placeholder):
+    def __init__(self, placeholder, framed=True):
         super().__init__(placeholder)
         self._source = None
-        self.setObjectName("previewPanel")
+        self.setObjectName("previewPanel" if framed else "stagePreview")
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setMinimumSize(200, 200)
 
@@ -509,12 +526,12 @@ class PicConverterGUI(QMainWindow):
         QGuiApplication.styleHints().colorSchemeChanged.connect(
             self._on_system_scheme_changed)
 
-        # Wunschgröße 1100x880, aber nie größer als der Bildschirm
+        # Wunschgröße 1240x820, aber nie größer als der Bildschirm
         screen = QGuiApplication.primaryScreen().availableGeometry()
-        width = min(1100, int(screen.width() * 0.92))
-        height = min(880, int(screen.height() * 0.90))
+        width = min(1240, int(screen.width() * 0.92))
+        height = min(820, int(screen.height() * 0.90))
         self.resize(width, height)
-        self.setMinimumSize(min(960, width), min(680, height))
+        self.setMinimumSize(min(1024, width), min(620, height))
 
     # ---------- Fonts und Grundgerüst ----------
 
@@ -539,30 +556,59 @@ class PicConverterGUI(QMainWindow):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
 
-        body = QWidget()
-        outer.addWidget(body, 1)
-        body_layout = QVBoxLayout(body)
-        body_layout.setContentsMargins(PAD, PAD, PAD, PAD)
-        body_layout.setSpacing(12)
+        main = QHBoxLayout()
+        main.setSpacing(0)
+        outer.addLayout(main, 1)
 
-        # ---------- Header ----------
-        header = QHBoxLayout()
-        header.setSpacing(PAD)
-        body_layout.addLayout(header)
+        # ---------- Sidebar: Logo, Dateiauswahl, Warteschlange, Theme ----------
+        sidebar = QFrame()
+        sidebar.setObjectName("sidebar")
+        sidebar.setFixedWidth(252)
+        side = QVBoxLayout(sidebar)
+        side.setContentsMargins(14, 16, 14, 14)
+        side.setSpacing(8)
 
-        title_box = QVBoxLayout()
-        title_box.setSpacing(2)
         self.logo_label = QLabel("PicConverter")
         title_font = QApplication.font()
-        title_font.setPointSizeF(title_font.pointSizeF() * 1.9)
+        title_font.setPointSizeF(title_font.pointSizeF() * 1.5)
         title_font.setWeight(title_font.Weight.Bold)
         self.logo_label.setFont(title_font)
-        title_box.addWidget(self.logo_label)
+        side.addWidget(self.logo_label)
         subtitle = QLabel(tr("Moderner Bild- & PDF-Konverter"))
         subtitle.setObjectName("subtitle")
-        title_box.addWidget(subtitle)
-        header.addLayout(title_box)
-        header.addStretch(1)
+        subtitle.setFont(self.font_small)
+        side.addWidget(subtitle)
+        side.addSpacing(8)
+
+        select_btn = QPushButton(tr("Dateien auswählen"))
+        select_btn.clicked.connect(self.select_files)
+        side.addWidget(select_btn)
+        drop_hint = QLabel(tr("… oder einfach ins Fenster ziehen"))
+        drop_hint.setFont(self.font_small)
+        self.set_kind(drop_hint, 'muted')
+        side.addWidget(drop_hint)
+        side.addSpacing(10)
+
+        queue_row = QHBoxLayout()
+        queue_row.setSpacing(4)
+        queue_row.addWidget(self._section_label(tr("Warteschlange")), 1)
+        clear_btn = QPushButton(tr("Leeren"))
+        clear_btn.setObjectName("toolBtn")
+        clear_btn.clicked.connect(self.clear_files)
+        queue_row.addWidget(clear_btn)
+        side.addLayout(queue_row)
+
+        self.input_label = QLabel(tr("Keine Dateien ausgewählt"))
+        self.input_label.setFont(self.font_small)
+        self.set_kind(self.input_label, 'muted')
+        side.addWidget(self.input_label)
+
+        self.file_list = QListWidget()
+        self.file_list.setObjectName("fileList")
+        self.file_list.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.file_list.currentRowChanged.connect(self.on_row_changed)
+        side.addWidget(self.file_list, 1)
 
         # Appearance-Umschalter als Segmented Control
         seg_frame = QFrame()
@@ -579,68 +625,55 @@ class PicConverterGUI(QMainWindow):
             btn.setCheckable(True)
             btn.setCursor(Qt.CursorShape.PointingHandCursor)
             btn.clicked.connect(lambda _, m=mode: self.on_appearance_change(m))
-            seg_layout.addWidget(btn)
+            seg_layout.addWidget(btn, 1)
             self.appearance_group.addButton(btn)
             self.appearance_buttons[mode] = btn
         self.appearance_buttons['system'].setChecked(True)
-        header.addWidget(seg_frame, 0, Qt.AlignmentFlag.AlignTop)
+        side.addWidget(seg_frame)
 
-        # ---------- Inhalt: zwei Spalten ----------
-        content = QHBoxLayout()
-        content.setSpacing(PAD)
-        body_layout.addLayout(content, 1)
+        main.addWidget(sidebar)
 
-        left = QVBoxLayout()
-        left.setSpacing(12)
-        right = QVBoxLayout()
-        right.setSpacing(12)
-        content.addLayout(left, 1)
-        content.addLayout(right, 1)
+        # ---------- Bühne: Hero-Dropzone (leer) oder Vorschau ----------
+        self.stage = QStackedWidget()
+        main.addWidget(self.stage, 1)
 
-        # ---------- Eingabedateien ----------
-        input_card, input_layout = self.create_card(tr("Eingabedateien"))
-        left.addWidget(input_card)
-
+        hero_page = QWidget()
+        hero_layout = QVBoxLayout(hero_page)
+        hero_layout.setContentsMargins(48, 48, 48, 48)
         self.drop_zone = DropZone()
         self.drop_zone.clicked.connect(self.select_files)
-        drop_layout = QVBoxLayout(self.drop_zone)
-        drop_layout.setContentsMargins(PAD, 12, PAD, 12)
+        self.drop_zone.setMinimumHeight(220)
+        self.drop_zone.setMaximumWidth(560)
+        dz_layout = QVBoxLayout(self.drop_zone)
+        dz_layout.setContentsMargins(PAD * 2, PAD * 2, PAD * 2, PAD * 2)
         drop_text = tr("Bilder oder PDFs hierher ziehen\noder klicken zum Auswählen")
         self.drop_label = QLabel(drop_text)
         self.drop_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        drop_layout.addWidget(self.drop_label)
-        input_layout.addWidget(self.drop_zone)
+        dz_layout.addWidget(self.drop_label)
+        hero_row = QHBoxLayout()
+        hero_row.addStretch(1)
+        hero_row.addWidget(self.drop_zone, 2)
+        hero_row.addStretch(1)
+        hero_layout.addStretch(2)
+        hero_layout.addLayout(hero_row)
+        hero_layout.addStretch(3)
+        self.stage.addWidget(hero_page)
 
-        file_row = QHBoxLayout()
-        file_row.setSpacing(8)
-        input_layout.addLayout(file_row)
+        view_page = QWidget()
+        view = QVBoxLayout(view_page)
+        view.setContentsMargins(24, 24, 24, 16)
+        view.setSpacing(12)
 
-        self.input_label = QLabel(tr("Keine Dateien ausgewählt"))
-        self.set_kind(self.input_label, 'muted')
-        file_row.addWidget(self.input_label, 1)
-
-        select_btn = QPushButton(tr("Dateien auswählen"))
-        select_btn.clicked.connect(self.select_files)
-        file_row.addWidget(select_btn)
-        clear_btn = QPushButton(tr("Leeren"))
-        clear_btn.clicked.connect(self.clear_files)
-        file_row.addWidget(clear_btn)
-
-        # Dateiliste -- wird erst ab zwei Dateien eingeblendet
-        self.file_list = QListWidget()
-        self.file_list.setObjectName("fileList")
-        self.file_list.setFixedHeight(108)
-        self.file_list.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self.file_list.currentRowChanged.connect(self.on_row_changed)
-        input_layout.addWidget(self.file_list)
-        self.file_list.hide()
+        self.preview_label = PreviewLabel(tr("Kein Bild geladen"), framed=False)
+        self.set_kind(self.preview_label, 'muted')
+        view.addWidget(self.preview_label, 1)
 
         # PDF-Seitennavigation -- wird nur bei geladener PDF eingeblendet
         self.page_row = QWidget()
         page_layout = QHBoxLayout(self.page_row)
         page_layout.setContentsMargins(0, 0, 0, 0)
         page_layout.setSpacing(6)
+        page_layout.addStretch(1)
         page_layout.addWidget(QLabel(tr("PDF-Seite")))
         prev_btn = QPushButton("‹")
         prev_btn.setObjectName("toolBtn")
@@ -662,37 +695,39 @@ class PicConverterGUI(QMainWindow):
         self.all_pages_check = QCheckBox(tr("Alle Seiten exportieren"))
         page_layout.addWidget(self.all_pages_check)
         page_layout.addStretch(1)
-        input_layout.addWidget(self.page_row)
+        view.addWidget(self.page_row)
         self.page_row.hide()
 
-        # ---------- Vorschau ----------
-        preview_card, preview_layout = self.create_card(tr("Vorschau"))
-        left.addWidget(preview_card, 1)
-        self.preview_label = PreviewLabel(tr("Kein Bild geladen"))
-        self.set_kind(self.preview_label, 'muted')
-        preview_layout.addWidget(self.preview_label, 1)
-
-        # ---------- Bildinformationen ----------
-        info_card, info_layout = self.create_card(tr("Bildinformationen"))
-        left.addWidget(info_card)
+        info_row = QHBoxLayout()
+        info_row.addStretch(1)
         self.info_label = QLabel("")
         self.info_label.setObjectName("infoBox")
         self.info_label.setFont(self.font_mono)
         self.info_label.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse)
-        self.info_label.setMinimumHeight(96)
-        self.info_label.setAlignment(Qt.AlignmentFlag.AlignTop |
-                                     Qt.AlignmentFlag.AlignLeft)
-        info_layout.addWidget(self.info_label)
+        self.info_label.setMinimumWidth(420)
+        info_row.addWidget(self.info_label)
+        info_row.addStretch(1)
+        view.addLayout(info_row)
+        self.stage.addWidget(view_page)
 
-        # ---------- Konvertierungseinstellungen ----------
-        settings_card, settings = self.create_card(tr("Konvertierungseinstellungen"))
-        right.addWidget(settings_card)
+        # ---------- Rechtes Panel: Einstellungen & Konvertierung ----------
+        panel_scroll = QScrollArea()
+        panel_scroll.setObjectName("panelScroll")
+        panel_scroll.setWidgetResizable(True)
+        panel_scroll.setFixedWidth(342)
+        panel_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        panel = QWidget()
+        pv = QVBoxLayout(panel)
+        pv.setContentsMargins(18, 16, 18, 16)
+        pv.setSpacing(10)
+        panel_scroll.setWidget(panel)
+        main.addWidget(panel_scroll)
 
+        pv.addWidget(self._section_label(tr("Preset")))
         preset_row = QHBoxLayout()
         preset_row.setSpacing(8)
-        settings.addLayout(preset_row)
-        preset_row.addWidget(QLabel(tr("Preset")))
         self.preset_menu = QComboBox()
         self.preset_menu.addItems(self._preset_names())
         self.preset_menu.textActivated.connect(self.on_preset_selected)
@@ -700,22 +735,26 @@ class PicConverterGUI(QMainWindow):
         preset_save_btn = QPushButton(tr("Speichern"))
         preset_save_btn.clicked.connect(self.save_preset)
         preset_row.addWidget(preset_save_btn)
+        pv.addLayout(preset_row)
 
-        settings.addSpacing(2)
-        settings.addWidget(QLabel(tr("Ausgabeformat")))
+        pv.addWidget(self._divider())
+
+        pv.addWidget(self._section_label(tr("Ausgabeformat")))
         self.format_menu = QComboBox()
         self.format_menu.addItems(list(SUPPORTED_FORMATS.keys()))
         self.format_menu.textActivated.connect(self.on_format_change)
-        settings.addWidget(self.format_menu)
+        pv.addWidget(self.format_menu)
 
         # PDF zusammenfassen -- nur bei Zielformat PDF sichtbar
         self.merge_check = QCheckBox(tr("Alle Eingaben in eine PDF zusammenfassen"))
         self.merge_check.toggled.connect(lambda _: self.update_output_path())
-        settings.addWidget(self.merge_check)
+        pv.addWidget(self.merge_check)
         self.merge_check.hide()
 
+        pv.addWidget(self._divider())
+
         quality_row = QHBoxLayout()
-        settings.addLayout(quality_row)
+        pv.addLayout(quality_row)
         self.quality_label = QLabel(tr("Qualität"))
         quality_row.addWidget(self.quality_label, 1)
         self.quality_value_label = QLabel("85")
@@ -727,28 +766,31 @@ class PicConverterGUI(QMainWindow):
         self.quality_slider.setRange(1, 100)
         self.quality_slider.setValue(85)
         self.quality_slider.valueChanged.connect(self.on_quality_change)
-        settings.addWidget(self.quality_slider)
+        pv.addWidget(self.quality_slider)
 
         target_row = QHBoxLayout()
         target_row.setSpacing(8)
-        settings.addLayout(target_row)
+        pv.addLayout(target_row)
         self.target_check = QCheckBox(tr("Zielgröße:"))
         self.target_check.toggled.connect(lambda _: self.on_target_toggle())
         target_row.addWidget(self.target_check)
         self.target_entry = QLineEdit("500")
-        self.target_entry.setFixedWidth(76)
+        self.target_entry.setFixedWidth(70)
         self.target_entry.setAlignment(Qt.AlignmentFlag.AlignCenter)
         target_row.addWidget(self.target_entry)
-        target_hint = QLabel(tr("KB (Qualität wird automatisch gesucht)"))
-        self.set_kind(target_hint, 'muted')
-        target_row.addWidget(target_hint)
+        target_row.addWidget(QLabel("KB"))
         target_row.addStretch(1)
+        target_hint = QLabel(tr("Qualität wird automatisch gesucht"))
+        target_hint.setFont(self.font_small)
+        self.set_kind(target_hint, 'muted')
+        pv.addWidget(target_hint)
 
+        pv.addWidget(self._divider())
+
+        pv.addWidget(self._section_label(tr("Auflösung")))
         resolution_row = QHBoxLayout()
         resolution_row.setSpacing(6)
-        settings.addLayout(resolution_row)
-        resolution_row.addWidget(QLabel(tr("Auflösung")))
-        resolution_row.addSpacing(4)
+        pv.addLayout(resolution_row)
         self.width_entry = QLineEdit()
         self.width_entry.setFixedWidth(76)
         self.width_entry.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -763,44 +805,39 @@ class PicConverterGUI(QMainWindow):
 
         self.aspect_check = QCheckBox(tr("Seitenverhältnis beibehalten"))
         self.aspect_check.setChecked(True)
-        settings.addWidget(self.aspect_check)
+        pv.addWidget(self.aspect_check)
 
-        watermark_row = QHBoxLayout()
-        watermark_row.setSpacing(6)
-        settings.addLayout(watermark_row)
+        pv.addWidget(self._divider())
+
+        wm_row1 = QHBoxLayout()
+        wm_row1.setSpacing(6)
+        pv.addLayout(wm_row1)
         self.watermark_check = QCheckBox(tr("Wasserzeichen:"))
-        watermark_row.addWidget(self.watermark_check)
+        wm_row1.addWidget(self.watermark_check)
         self.watermark_text_entry = QLineEdit()
         self.watermark_text_entry.setPlaceholderText(tr("Text, z.B. © 2026"))
-        watermark_row.addWidget(self.watermark_text_entry, 1)
+        wm_row1.addWidget(self.watermark_text_entry, 1)
+
+        wm_row2 = QHBoxLayout()
+        wm_row2.setSpacing(6)
+        pv.addLayout(wm_row2)
         self.watermark_pos_labels = {tr(p): p for p in core.WATERMARK_POSITIONS}
         self.watermark_pos_menu = QComboBox()
         self.watermark_pos_menu.addItems(list(self.watermark_pos_labels))
         self.watermark_pos_menu.setCurrentText(tr('unten-rechts'))
-        watermark_row.addWidget(self.watermark_pos_menu)
+        wm_row2.addWidget(self.watermark_pos_menu, 1)
         self.watermark_opacity_entry = QLineEdit("50")
         self.watermark_opacity_entry.setFixedWidth(44)
         self.watermark_opacity_entry.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        watermark_row.addWidget(self.watermark_opacity_entry)
-        watermark_row.addWidget(QLabel("%"))
+        wm_row2.addWidget(self.watermark_opacity_entry)
+        wm_row2.addWidget(QLabel("%"))
 
-        estimate_row = QHBoxLayout()
-        estimate_row.setSpacing(12)
-        settings.addLayout(estimate_row)
-        estimate_btn = QPushButton(tr("Größe schätzen"))
-        estimate_btn.clicked.connect(self.estimate_size)
-        estimate_row.addWidget(estimate_btn)
-        self.estimate_label = QLabel(tr("Geschätzte Ausgabegröße: -- MB"))
-        self.set_kind(self.estimate_label, 'muted')
-        estimate_row.addWidget(self.estimate_label, 1)
+        pv.addWidget(self._divider())
 
-        # ---------- EXIF-Metadaten ----------
-        exif_card, exif_layout = self.create_card(tr("EXIF-Metadaten"))
-        right.addWidget(exif_card)
-
+        pv.addWidget(self._section_label(tr("EXIF-Metadaten")))
         exif_row = QHBoxLayout()
         exif_row.setSpacing(8)
-        exif_layout.addLayout(exif_row)
+        pv.addLayout(exif_row)
         self.exif_strip_check = QCheckBox(tr("Metadaten entfernen"))
         exif_row.addWidget(self.exif_strip_check, 1)
         exif_btn = QPushButton(tr("Anzeigen / Bearbeiten"))
@@ -808,27 +845,43 @@ class PicConverterGUI(QMainWindow):
         exif_row.addWidget(exif_btn)
 
         self.exif_hint_label = QLabel("")
+        self.exif_hint_label.setFont(self.font_small)
+        self.exif_hint_label.setWordWrap(True)
         self.set_kind(self.exif_hint_label, 'accent')
-        exif_layout.addWidget(self.exif_hint_label)
+        pv.addWidget(self.exif_hint_label)
         self.exif_hint_label.hide()
 
-        # ---------- Ausgabe & Konvertierung ----------
-        action_card, action_layout = self.create_card(tr("Ausgabe & Konvertierung"))
-        right.addWidget(action_card)
+        pv.addWidget(self._divider())
 
-        output_row = QHBoxLayout()
-        output_row.setSpacing(8)
-        action_layout.addLayout(output_row)
+        pv.addWidget(self._section_label(tr("Ausgabe & Konvertierung")))
         self.output_label = QLabel(tr("Automatisch generiert"))
+        self.output_label.setWordWrap(True)
         self.set_kind(self.output_label, 'muted')
-        output_row.addWidget(self.output_label, 1)
+        pv.addWidget(self.output_label)
+
+        out_row = QHBoxLayout()
+        out_row.setSpacing(8)
+        pv.addLayout(out_row)
         output_btn = QPushButton(tr("Speicherort wählen"))
         output_btn.clicked.connect(self.select_output)
-        output_row.addWidget(output_btn)
+        out_row.addWidget(output_btn)
+        estimate_btn = QPushButton(tr("Größe schätzen"))
+        estimate_btn.clicked.connect(self.estimate_size)
+        out_row.addWidget(estimate_btn)
+        out_row.addStretch(1)
 
-        self.overwrite_check = QCheckBox(
+        self.estimate_label = QLabel(tr("Geschätzte Ausgabegröße: -- MB"))
+        self.estimate_label.setFont(self.font_small)
+        self.estimate_label.setWordWrap(True)
+        self.set_kind(self.estimate_label, 'muted')
+        pv.addWidget(self.estimate_label)
+
+        self.overwrite_check = QCheckBox(tr("Vorhandene Dateien überschreiben"))
+        self.overwrite_check.setToolTip(
             tr("Vorhandene Dateien überschreiben (sonst \"name (1)\")"))
-        action_layout.addWidget(self.overwrite_check)
+        pv.addWidget(self.overwrite_check)
+
+        pv.addStretch(1)
 
         self.convert_button = QPushButton(tr("Konvertieren starten"))
         self.convert_button.setObjectName("primary")
@@ -836,29 +889,24 @@ class PicConverterGUI(QMainWindow):
         self.convert_button.setEnabled(False)
         self.convert_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.convert_button.clicked.connect(self.convert)
-        action_layout.addWidget(self.convert_button)
+        pv.addWidget(self.convert_button)
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, 100)
         self.progress_bar.setValue(0)
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setFixedHeight(8)
-        action_layout.addWidget(self.progress_bar)
+        pv.addWidget(self.progress_bar)
 
-        result_row = QHBoxLayout()
-        result_row.setSpacing(8)
-        action_layout.addLayout(result_row)
         self.result_label = QLabel("")
         self.result_label.setWordWrap(True)
-        result_row.addWidget(self.result_label, 1)
+        self.result_label.setFont(self.font_small)
+        pv.addWidget(self.result_label)
         self.result_label.hide()
         self.open_folder_button = QPushButton(tr("Ordner öffnen"))
         self.open_folder_button.clicked.connect(self.open_output_folder)
-        result_row.addWidget(self.open_folder_button, 0,
-                             Qt.AlignmentFlag.AlignTop)
+        pv.addWidget(self.open_folder_button)
         self.open_folder_button.hide()
-
-        right.addStretch(1)
 
         # ---------- Statusleiste ----------
         status_bar = QFrame()
@@ -877,20 +925,19 @@ class PicConverterGUI(QMainWindow):
         # Initiale Format-Einstellung
         self.on_format_change()
 
-    def create_card(self, title):
-        """Erstellt eine Card mit VERSALIEN-Titel; gibt (Card, Layout) zurück"""
-        card = QFrame()
-        card.setObjectName("card")
-        layout = QVBoxLayout(card)
-        layout.setContentsMargins(PAD, 12, PAD, 14)
-        layout.setSpacing(10)
-
-        label = QLabel(title.upper())
+    def _section_label(self, text):
+        """Kleine VERSALIEN-Überschrift für Panel-Sektionen"""
+        label = QLabel(text.upper())
         label.setObjectName("sectionTitle")
         label.setFont(self.font_section)
-        layout.addWidget(label)
+        return label
 
-        return card, layout
+    def _divider(self):
+        """Feine Trennlinie zwischen Panel-Sektionen"""
+        line = QFrame()
+        line.setObjectName("divider")
+        line.setFixedHeight(1)
+        return line
 
     # ---------- Theme und Status ----------
 
@@ -930,7 +977,7 @@ class PicConverterGUI(QMainWindow):
             return
         dpr = self.devicePixelRatioF()
         pixmap = QPixmap(str(logo)).scaledToHeight(
-            int(34 * dpr), Qt.TransformationMode.SmoothTransformation)
+            int(26 * dpr), Qt.TransformationMode.SmoothTransformation)
         pixmap.setDevicePixelRatio(dpr)
         self.logo_label.setPixmap(pixmap)
 
@@ -1129,6 +1176,7 @@ class PicConverterGUI(QMainWindow):
         self.thumbnails = {}
         self.refresh_file_list()
         self.page_row.hide()
+        self.stage.setCurrentIndex(0)
         self.preview_label.clear_image(tr("Kein Bild geladen"))
         self.info_label.setText("")
         self.input_label.setText(tr("Keine Dateien ausgewählt"))
@@ -1211,16 +1259,10 @@ class PicConverterGUI(QMainWindow):
         return row
 
     def refresh_file_list(self):
-        """Baut die Dateiliste neu auf (sichtbar ab zwei Dateien)"""
+        """Baut die Warteschlangen-Liste in der Sidebar neu auf"""
         self.file_list.blockSignals(True)
         self.file_list.clear()
 
-        if len(self.input_paths) < 2:
-            self.file_list.hide()
-            self.file_list.blockSignals(False)
-            return
-
-        self.file_list.show()
         for i, path in enumerate(self.input_paths):
             item = QListWidgetItem()
             widget = self._file_row_widget(i, path)
@@ -1263,6 +1305,7 @@ class PicConverterGUI(QMainWindow):
                 self.image = core.load_image(path)
 
             self.refresh_display()
+            self.stage.setCurrentIndex(1)
 
             if len(self.input_paths) == 1:
                 short_name = path.name
