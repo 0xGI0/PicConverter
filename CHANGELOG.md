@@ -6,6 +6,11 @@ Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
 ## [Unreleased]
 
+### Hinzugefügt
+- **Sprachumschalter in der GUI** (Auto/DE/EN, in der Sidebar): die Sprache
+  lässt sich jetzt live wechseln — die Oberfläche baut sich in der neuen
+  Sprache auf, alle Eingaben bleiben erhalten; die Wahl wird gespeichert
+
 ### Geändert
 - **GUI von CustomTkinter auf PySide6 (Qt 6) portiert** — komplett neues,
   flaches Design mit eigenem hellen/dunklen Theme (folgt weiterhin dem

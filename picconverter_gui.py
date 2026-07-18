@@ -27,6 +27,7 @@ except ImportError:
 from PIL import Image
 
 import picconverter_core as core
+import picconverter_i18n as i18n
 from picconverter_i18n import tr
 
 ASSETS = Path(__file__).parent / 'assets'
@@ -493,10 +494,16 @@ class _WorkerSignals(QObject):
 class PicConverterGUI(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle(tr("PicConverter - Bild- & PDF-Konverter"))
         icon_path = ASSETS / 'icon.png'
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
+
+        # Sprache vor dem UI-Aufbau setzen; PICCONVERTER_LANG hat Vorrang
+        saved = core.load_gui_settings() or {}
+        self.language = saved.get('language', 'system')
+        if os.environ.get('PICCONVERTER_LANG'):
+            self.language = 'system'
+        i18n.set_language(self.language)
 
         self.input_paths = []          # Warteschlange aller geladenen Dateien
         self.selected_index = None     # Index der Datei, die Vorschau/Infos zeigt
@@ -550,6 +557,7 @@ class PicConverterGUI(QMainWindow):
             QFontDatabase.SystemFont.FixedFont)
 
     def setup_ui(self):
+        self.setWindowTitle(tr("PicConverter - Bild- & PDF-Konverter"))
         central = QWidget()
         self.setCentralWidget(central)
         outer = QVBoxLayout(central)
@@ -610,6 +618,26 @@ class PicConverterGUI(QMainWindow):
         self.file_list.currentRowChanged.connect(self.on_row_changed)
         side.addWidget(self.file_list, 1)
 
+        # Sprachumschalter (Auto = Systemsprache)
+        lang_frame = QFrame()
+        lang_frame.setObjectName("segmented")
+        lang_layout = QHBoxLayout(lang_frame)
+        lang_layout.setContentsMargins(3, 3, 3, 3)
+        lang_layout.setSpacing(2)
+        self.language_group = QButtonGroup(self)
+        self.language_buttons = {}
+        for label, lang in (("Auto", 'system'), ("DE", 'de'), ("EN", 'en')):
+            btn = QPushButton(label)
+            btn.setObjectName("segItem")
+            btn.setCheckable(True)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda _, l=lang: self.on_language_change(l))
+            lang_layout.addWidget(btn, 1)
+            self.language_group.addButton(btn)
+            self.language_buttons[lang] = btn
+        self.language_buttons[self.language].setChecked(True)
+        side.addWidget(lang_frame)
+
         # Appearance-Umschalter als Segmented Control
         seg_frame = QFrame()
         seg_frame.setObjectName("segmented")
@@ -628,7 +656,7 @@ class PicConverterGUI(QMainWindow):
             seg_layout.addWidget(btn, 1)
             self.appearance_group.addButton(btn)
             self.appearance_buttons[mode] = btn
-        self.appearance_buttons['system'].setChecked(True)
+        self.appearance_buttons[self.appearance_mode].setChecked(True)
         side.addWidget(seg_frame)
 
         main.addWidget(sidebar)
@@ -996,55 +1024,83 @@ class PicConverterGUI(QMainWindow):
         if not settings:
             return
         try:
-            mode = settings.get('appearance', 'system')
-            if mode in self.appearance_buttons:
-                self.appearance_buttons[mode].setChecked(True)
-                self.apply_theme(mode)
-
-            fmt_label = settings.get('format')
-            if fmt_label in SUPPORTED_FORMATS:
-                self.format_menu.setCurrentText(fmt_label)
-                self.on_format_change()
-            if 'quality' in settings:
-                self.quality_slider.setValue(int(settings['quality']))
-                self.on_quality_change()
-            self.target_check.setChecked(bool(settings.get('use_target', False)))
-            self.target_entry.setText(str(settings.get('target_kb', 500)))
-            self.aspect_check.setChecked(bool(settings.get('keep_aspect', True)))
-            self.exif_strip_check.setChecked(bool(settings.get('strip_exif', False)))
-            self.overwrite_check.setChecked(bool(settings.get('overwrite', False)))
-            self.watermark_check.setChecked(bool(settings.get('watermark_on', False)))
-            self.watermark_text_entry.setText(settings.get('watermark_text', ''))
-            pos = settings.get('watermark_pos', 'unten-rechts')
-            if pos in core.WATERMARK_POSITIONS:
-                self.watermark_pos_menu.setCurrentText(tr(pos))
-            self.watermark_opacity_entry.setText(
-                str(settings.get('watermark_opacity', 50)))
-            self.on_target_toggle()
+            self._apply_settings(settings)
         except Exception:
             pass  # defekte Einstellungsdatei ignorieren
+
+    def _apply_settings(self, settings):
+        """Überträgt ein Einstellungs-Dict auf die Widgets"""
+        mode = settings.get('appearance', 'system')
+        if mode in self.appearance_buttons:
+            self.appearance_buttons[mode].setChecked(True)
+            self.apply_theme(mode)
+
+        fmt_label = settings.get('format')
+        if fmt_label in SUPPORTED_FORMATS:
+            self.format_menu.setCurrentText(fmt_label)
+            self.on_format_change()
+        if 'quality' in settings:
+            self.quality_slider.setValue(int(settings['quality']))
+            self.on_quality_change()
+        self.target_check.setChecked(bool(settings.get('use_target', False)))
+        self.target_entry.setText(str(settings.get('target_kb', 500)))
+        self.aspect_check.setChecked(bool(settings.get('keep_aspect', True)))
+        self.exif_strip_check.setChecked(bool(settings.get('strip_exif', False)))
+        self.overwrite_check.setChecked(bool(settings.get('overwrite', False)))
+        self.watermark_check.setChecked(bool(settings.get('watermark_on', False)))
+        self.watermark_text_entry.setText(settings.get('watermark_text', ''))
+        pos = settings.get('watermark_pos', 'unten-rechts')
+        if pos in core.WATERMARK_POSITIONS:
+            self.watermark_pos_menu.setCurrentText(tr(pos))
+        self.watermark_opacity_entry.setText(
+            str(settings.get('watermark_opacity', 50)))
+        self.on_target_toggle()
+
+    def _collect_settings(self):
+        """Liest den aktuellen Widget-Zustand als Einstellungs-Dict aus"""
+        return {
+            'appearance': self.appearance_mode,
+            'language': self.language,
+            'format': self.format_menu.currentText(),
+            'quality': int(self.quality_slider.value()),
+            'use_target': self.target_check.isChecked(),
+            'target_kb': self.target_entry.text(),
+            'keep_aspect': self.aspect_check.isChecked(),
+            'strip_exif': self.exif_strip_check.isChecked(),
+            'overwrite': self.overwrite_check.isChecked(),
+            'watermark_on': self.watermark_check.isChecked(),
+            'watermark_text': self.watermark_text_entry.text(),
+            'watermark_pos': self.watermark_pos_labels.get(
+                self.watermark_pos_menu.currentText(), 'unten-rechts'),
+            'watermark_opacity': self.watermark_opacity_entry.text(),
+        }
 
     def closeEvent(self, event):
         """Speichert die Einstellungen und schließt das Fenster"""
         try:
-            core.save_gui_settings({
-                'appearance': self.appearance_mode,
-                'format': self.format_menu.currentText(),
-                'quality': int(self.quality_slider.value()),
-                'use_target': self.target_check.isChecked(),
-                'target_kb': self.target_entry.text(),
-                'keep_aspect': self.aspect_check.isChecked(),
-                'strip_exif': self.exif_strip_check.isChecked(),
-                'overwrite': self.overwrite_check.isChecked(),
-                'watermark_on': self.watermark_check.isChecked(),
-                'watermark_text': self.watermark_text_entry.text(),
-                'watermark_pos': self.watermark_pos_labels.get(
-                    self.watermark_pos_menu.currentText(), 'unten-rechts'),
-                'watermark_opacity': self.watermark_opacity_entry.text(),
-            })
+            core.save_gui_settings(self._collect_settings())
         except Exception:
             pass
         super().closeEvent(event)
+
+    def on_language_change(self, lang):
+        """Wechselt die Sprache und baut die Oberfläche neu auf"""
+        if lang == self.language:
+            return
+        settings = self._collect_settings()
+        self.language = lang
+        i18n.set_language(lang)
+        self.setup_ui()
+        self.apply_theme(self.appearance_mode)
+        try:
+            self._apply_settings(settings)
+        except Exception:
+            pass
+        self.refresh_file_list()
+        if self.input_paths:
+            self.load_selected()
+        self.update_exif_hint()
+        self.set_status(tr("Sprache geändert"), 'success')
 
     # ---------- Presets ----------
 

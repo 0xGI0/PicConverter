@@ -41,7 +41,7 @@ Ein **Bild- & PDF-Konvertierungs-Tool** für Python mit moderner GUI (Qt/PySide6
 - **Animierte GIFs/WebPs** behalten bei GIF↔WebP ihre Animation
 - **Anpassbare Qualität/Kompression**, **Auflösungsänderung** mit Seitenverhältnis-Erhalt und **Größenprognose** vor der Konvertierung
 - **Moderne Oberfläche**: folgt dem System-Theme (umschaltbar), Live-Vorschau, PDF-Seitennavigation, Ergebnis inline mit „Ordner öffnen“, Einstellungen bleiben zwischen Sitzungen erhalten
-- **Zweisprachig**: Deutsch/Englisch, automatisch nach Systemsprache (`PICCONVERTER_LANG=de|en` zum Umschalten)
+- **Zweisprachig**: Deutsch/Englisch — automatisch nach Systemsprache, direkt in der GUI umschaltbar (Auto/DE/EN) oder per `PICCONVERTER_LANG=de|en`
 - **Zwei Modi**: GUI für interaktive Nutzung, CLI für Skripte und Automatisierung
 
 ---

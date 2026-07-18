@@ -173,6 +173,7 @@ Examples:
         "Alle Seiten exportieren": "Export all pages",
         "Vorschau": "Preview",
         "Warteschlange": "Queue",
+        "Sprache geändert": "Language changed",
         "… oder einfach ins Fenster ziehen": "… or simply drag them into the window",
         "Qualität wird automatisch gesucht": "Quality is searched automatically",
         "Vorhandene Dateien überschreiben": "Overwrite existing files",
@@ -314,6 +315,12 @@ def _detect_language():
 
 
 LANGUAGE = _detect_language()
+
+
+def set_language(lang):
+    """Setzt die aktive Sprache zur Laufzeit ('de', 'en' oder 'system')"""
+    global LANGUAGE
+    LANGUAGE = _detect_language() if lang == 'system' else lang
 
 
 def tr(text):
