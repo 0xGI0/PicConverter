@@ -1,11 +1,8 @@
 # Bildverarbeitung
 Pillow>=10.0
 
-# GUI (modernes Theming für tkinter)
-customtkinter>=5.2
-
-# Optional: Drag & Drop in der GUI
-tkinterdnd2>=0.4
+# GUI (Qt für Python — bringt Drag & Drop und natives HiDPI mit)
+PySide6>=6.6
 
 # PDF-Eingabe (PDF → Bild); Bild → PDF geht auch ohne (via Pillow)
 PyMuPDF>=1.24

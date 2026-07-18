@@ -160,7 +160,7 @@ Examples:
         "System": "System",
         "Dunkel": "Dark",
         "Hell": "Light",
-        "📁 Eingabedateien": "📁 Input files",
+        "Eingabedateien": "Input files",
         "Bilder oder PDFs hierher ziehen\noder klicken zum Auswählen":
             "Drag images or PDFs here\nor click to select",
         "Klicken, um Bilder oder PDFs auszuwählen":
@@ -171,10 +171,10 @@ Examples:
         "PDF-Seite": "PDF page",
         "von {n}": "of {n}",
         "Alle Seiten exportieren": "Export all pages",
-        "👁️ Vorschau": "👁️ Preview",
+        "Vorschau": "Preview",
         "Kein Bild geladen": "No image loaded",
-        "ℹ️ Bildinformationen": "ℹ️ Image information",
-        "⚙️ Konvertierungseinstellungen": "⚙️ Conversion settings",
+        "Bildinformationen": "Image information",
+        "Konvertierungseinstellungen": "Conversion settings",
         "Preset": "Preset",
         "(keins)": "(none)",
         "Speichern": "Save",
@@ -197,19 +197,16 @@ Examples:
         'mitte': 'center',
         "Größe schätzen": "Estimate size",
         "Geschätzte Ausgabegröße: -- MB": "Estimated output size: -- MB",
-        "🏷️ EXIF-Metadaten": "🏷️ EXIF metadata",
         "Metadaten entfernen": "Strip metadata",
         "Anzeigen / Bearbeiten": "View / edit",
-        "💾 Ausgabe & Konvertierung": "💾 Output & conversion",
+        "Ausgabe & Konvertierung": "Output & conversion",
         "Automatisch generiert": "Generated automatically",
         "Speicherort wählen": "Choose destination",
         'Vorhandene Dateien überschreiben (sonst "name (1)")':
             'Overwrite existing files (otherwise "name (1)")',
         "Konvertieren starten": "Start conversion",
-        "📂 Ordner öffnen": "📂 Open folder",
+        "Ordner öffnen": "Open folder",
         "Bereit": "Ready",
-        "Bereit — Tipp: 'pip install tkinterdnd2' aktiviert Drag & Drop":
-            "Ready — tip: 'pip install tkinterdnd2' enables drag & drop",
         "Bereit — Tipp: 'pip install pymupdf' aktiviert PDF-Eingabe":
             "Ready — tip: 'pip install pymupdf' enables PDF input",
 
@@ -264,7 +261,7 @@ Examples:
         "✓ {n} EXIF-Feld(er) werden beim Konvertieren angepasst":
             "✓ {n} EXIF field(s) will be adjusted during conversion",
         "EXIF-Änderungen zurückgesetzt": "EXIF changes reset",
-        "✎ Wird angepasst: {fields}": "✎ Will be adjusted: {fields}",
+        "Wird angepasst: {fields}": "Will be adjusted: {fields}",
         "je Eingabeordner": "each input folder",
         "Mehrere Dateien → {target}": "Multiple files → {target}",
         "Bitte zuerst Dateien auswählen": "Please select files first",
@@ -276,18 +273,18 @@ Examples:
         "Bilder oder PDFs auswählen": "Select images or PDFs",
         "Geschätzt: {size:.2f} MB (Qualität {q})":
             "Estimated: {size:.2f} MB (quality {q})",
-        "📉 Zielgröße {kb} KB → Qualität {q}":
-            "📉 Target size {kb} KB → quality {q}",
+        "Zielgröße {kb} KB → Qualität {q}":
+            "Target size {kb} KB → quality {q}",
         "Geschätzt: {size:.2f} MB (Original: {orig:.2f} MB)":
             "Estimated: {size:.2f} MB (original: {orig:.2f} MB)",
-        "📉 Schätzung: -{value:.1f}% kleiner":
-            "📉 Estimate: {value:.1f}% smaller",
-        "📈 Schätzung: +{value:.1f}% größer":
-            "📈 Estimate: {value:.1f}% larger",
+        "Schätzung: -{value:.1f}% kleiner":
+            "Estimate: {value:.1f}% smaller",
+        "Schätzung: +{value:.1f}% größer":
+            "Estimate: {value:.1f}% larger",
         "Konnte Größe nicht schätzen": "Could not estimate the size",
         "✗ Fehler bei Größenberechnung: {error}":
             "✗ Size estimation failed: {error}",
-        "⏳ Konvertiere...": "⏳ Converting...",
+        "Konvertiere...": "Converting...",
         "{n} Seite(n) → {name} ({size:.2f} MB)":
             "{n} page(s) → {name} ({size:.2f} MB)",
         "S.": "p.",

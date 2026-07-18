@@ -7,12 +7,12 @@
 
 [![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
 [![Tests](https://github.com/0xGI0/PicConverter/actions/workflows/tests.yml/badge.svg)](https://github.com/0xGI0/PicConverter/actions/workflows/tests.yml)
-[![CustomTkinter](https://img.shields.io/badge/GUI-CustomTkinter-1f538d?style=flat)](https://github.com/TomSchimansky/CustomTkinter)
+[![Qt for Python](https://img.shields.io/badge/GUI-PySide6_(Qt)-2c66a8?style=flat)](https://doc.qt.io/qtforpython-6/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 🇩🇪 [Deutsche Version](README.md)
 
-An **image & PDF conversion tool** for Python with a modern GUI (CustomTkinter) and a CLI for automation. Converts single files or whole batches between all common image formats and PDF — with EXIF management, watermarks, presets, target-size mode, and size estimation. The interface follows your system language (German/English).
+An **image & PDF conversion tool** for Python with a modern GUI (Qt/PySide6) and a CLI for automation. Converts single files or whole batches between all common image formats and PDF — with EXIF management, watermarks, presets, target-size mode, and size estimation. The interface follows your system language (German/English).
 
 ![Screenshot](screenshot.png)
 
@@ -63,8 +63,7 @@ This installs:
 | Package | Purpose |
 |---------|---------|
 | `Pillow` | Image processing |
-| `customtkinter` | Modern GUI |
-| `tkinterdnd2` | Drag & drop (optional — the GUI works without it) |
+| `PySide6` | Modern GUI (Qt) — drag & drop and HiDPI included |
 | `PyMuPDF` | PDF → image (optional — image → PDF works without it) |
 | `pillow-heif` | HEIC/HEIF input (optional) |
 
@@ -80,14 +79,6 @@ pip install .[all]        # or: pipx install .[all]
 cp picconverter.desktop ~/.local/share/applications/
 mkdir -p ~/.local/share/icons/hicolor/512x512/apps
 cp assets/icon.png ~/.local/share/icons/hicolor/512x512/apps/picconverter.png
-```
-
-**Note (Linux):** tkinter itself is installed via the package manager if missing:
-
-```bash
-sudo apt-get install python3-tk    # Ubuntu/Debian
-sudo dnf install python3-tkinter   # Fedora/RHEL
-sudo pacman -S tk                  # Arch Linux
 ```
 
 ---
@@ -215,8 +206,7 @@ python picconverter_cli.py photo.jpg -f png --watermark-image logo.png --waterma
 | **Image processing** | Pillow (PIL) |
 | **PDF rendering** | PyMuPDF (optional, PDF → image only) |
 | **HEIC/HEIF** | pillow-heif (optional) |
-| **GUI framework** | CustomTkinter |
-| **Drag & drop** | tkinterdnd2 (optional) |
+| **GUI framework** | PySide6 (Qt 6) — native Wayland, drag & drop and per-monitor HiDPI included |
 | **Configuration** | `~/.config/picconverter/` (presets, GUI settings) |
 | **Tests & lint** | pytest + ruff, CI via GitHub Actions |
 | **Releases** | PyInstaller binaries (Windows/Linux) per git tag |
@@ -225,34 +215,18 @@ python picconverter_cli.py photo.jpg -f png --watermark-image logo.png --waterma
 
 ## 🐛 Troubleshooting
 
-**`ModuleNotFoundError: No module named 'customtkinter'` (or `'PIL'`)**
+**`ModuleNotFoundError: No module named 'PySide6'` (or `'PIL'`)**
 
 ```bash
 pip install -r requirements.txt
 ```
 
-**"ImageTk could not be imported"**
-
-```bash
-sudo apt-get install python3-tk   # Ubuntu/Debian
-sudo dnf install python3-tkinter  # Fedora/RHEL
-# or: pip install --ignore-installed Pillow
-```
-
 **GUI too small or too large (HiDPI)**
 
-On Linux the scaling is detected from the system DPI. If the result is off, set the factor manually:
+Qt detects the display scaling itself (on Wayland even per monitor). If the result is off, set the factor manually:
 
 ```bash
 PICCONVERTER_SCALE=1.5 python picconverter_gui.py
-```
-
-**Drag & drop does not work**
-
-The GUI works without it — install `tkinterdnd2` for drag & drop:
-
-```bash
-pip install tkinterdnd2
 ```
 
 **"PDF input requires PyMuPDF"**

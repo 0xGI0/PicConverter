@@ -18,11 +18,11 @@ jobs:
       - name: Abhängigkeiten installieren
         run: |
           python -m pip install --upgrade pip
-          pip install Pillow customtkinter tkinterdnd2 PyMuPDF pillow-heif pyinstaller
+          pip install Pillow PySide6 PyMuPDF pillow-heif pyinstaller
       - name: GUI-Binary bauen
         run: >
           pyinstaller --noconfirm --onefile --windowed --name PicConverter
-          --collect-all customtkinter --collect-all tkinterdnd2
+          --add-data "assets:assets"
           picconverter_gui.py
       - name: CLI-Binary bauen
         run: >
@@ -48,12 +48,12 @@ jobs:
       - name: Abhängigkeiten installieren
         run: |
           python -m pip install --upgrade pip
-          pip install Pillow customtkinter tkinterdnd2 PyMuPDF pillow-heif pyinstaller
+          pip install Pillow PySide6 PyMuPDF pillow-heif pyinstaller
       - name: GUI-Binary bauen
         run: >
           pyinstaller --noconfirm --onefile --windowed --name PicConverter
           --icon assets/icon.ico
-          --collect-all customtkinter --collect-all tkinterdnd2
+          --add-data "assets;assets"
           picconverter_gui.py
       - name: CLI-Binary bauen
         run: >

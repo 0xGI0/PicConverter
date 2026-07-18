@@ -1,46 +1,35 @@
 #!/usr/bin/env python3
 """
-PicConverter GUI - Modernes Bild- & PDF-Konvertierungs-Tool (CustomTkinter)
+PicConverter GUI - Modernes Bild- & PDF-Konvertierungs-Tool (PySide6/Qt)
 """
 
 import os
-import subprocess
 import sys
 import threading
-import tkinter as tk
-import tkinter.font as tkfont
 from pathlib import Path
-from tkinter import filedialog
 
 try:
-    import customtkinter as ctk
+    from PySide6.QtCore import QObject, QSize, Qt, QUrl, Signal
+    from PySide6.QtGui import (QDesktopServices, QFontDatabase, QGuiApplication,
+                               QIcon, QImage, QPalette, QColor, QPixmap)
+    from PySide6.QtWidgets import (QApplication, QButtonGroup, QCheckBox, QComboBox,
+                                   QDialog, QFileDialog, QFrame, QHBoxLayout,
+                                   QInputDialog, QLabel, QLineEdit, QListWidget,
+                                   QListWidgetItem, QMainWindow, QPlainTextEdit,
+                                   QProgressBar, QPushButton, QSlider, QVBoxLayout,
+                                   QWidget)
 except ImportError:
-    print("Fehler: customtkinter konnte nicht importiert werden.", file=sys.stderr)
+    print("Fehler: PySide6 konnte nicht importiert werden.", file=sys.stderr)
     print("\nBitte installieren Sie die Abhängigkeiten:", file=sys.stderr)
     print("  pip install -r requirements.txt", file=sys.stderr)
     sys.exit(1)
 
 from PIL import Image
-try:
-    from PIL import ImageTk  # noqa: F401 -- wird von CTkImage benötigt
-except ImportError:
-    print("Fehler: ImageTk konnte nicht importiert werden.", file=sys.stderr)
-    print("\nBitte installieren Sie das python3-pillow-tk Paket:", file=sys.stderr)
-    print("  sudo dnf install python3-pillow-tk", file=sys.stderr)
-    print("\nOder mit pip:", file=sys.stderr)
-    print("  pip install Pillow[tk]", file=sys.stderr)
-    sys.exit(1)
 
 import picconverter_core as core
 from picconverter_i18n import tr
 
-# Drag & Drop ist optional -- ohne tkinterdnd2 läuft die GUI trotzdem
-try:
-    from tkinterdnd2 import DND_FILES, TkinterDnD
-    DND_AVAILABLE = True
-except ImportError:
-    DND_AVAILABLE = False
-
+ASSETS = Path(__file__).parent / 'assets'
 
 # Anzeigename -> PIL-Formatname
 SUPPORTED_FORMATS = {
@@ -76,458 +65,881 @@ SUPPORTED_INPUT_EXTENSIONS = {f'.{ext}' for ext in core.INPUT_EXTENSIONS}
 # Maximale Anzahl Mini-Vorschaubilder in der Dateiliste
 MAX_THUMBNAILS = 40
 
-# Farbpaare (hell, dunkel) -- CustomTkinter wählt je nach Appearance-Mode
-COLORS = {
-    'accent': ('#1f538d', '#6ea8dc'),
-    'success': ('#1a7a3c', '#a6e3a1'),
-    'error': ('#b3261e', '#f38ba8'),
-    'warning': ('#8a5a00', '#f9e2af'),
-    'muted': ('gray35', 'gray65'),
-    'panel': ('gray88', 'gray17'),
-    'border': ('gray70', 'gray35'),
-}
-
 PAD = 16  # Einheitlicher Abstand zwischen Sektionen
 
+# Farb-Tokens je Theme; 'system' folgt dem Desktop über Qt-ColorScheme
+THEMES = {
+    'light': {
+        'window': '#f2f3f5',
+        'card': '#ffffff',
+        'field': '#f5f6f8',
+        'border': '#dfe2e7',
+        'border_strong': '#c4c9d1',
+        'text': '#1d2129',
+        'muted': '#697077',
+        'accent': '#2c66a8',
+        'accent_soft': '#e4edf7',
+        'btn': '#316fb8',
+        'btn_hover': '#2a609f',
+        'btn_press': '#255489',
+        'ghost_hover': '#eceef1',
+        'seg_checked': '#ffffff',
+        'success': '#1a7a3c',
+        'error': '#b3261e',
+        'warning': '#8a5a00',
+        'chevron': 'chevron-down-light.svg',
+    },
+    'dark': {
+        'window': '#191b1e',
+        'card': '#212428',
+        'field': '#2a2e33',
+        'border': '#34383e',
+        'border_strong': '#4a5058',
+        'text': '#e8eaed',
+        'muted': '#9aa1ab',
+        'accent': '#82b3e8',
+        'accent_soft': '#2c3d52',
+        'btn': '#3a72b4',
+        'btn_hover': '#4681c4',
+        'btn_press': '#356399',
+        'ghost_hover': '#2e3237',
+        'seg_checked': '#3a3f46',
+        'success': '#8fd6a4',
+        'error': '#ef9a9a',
+        'warning': '#e8c47a',
+        'chevron': 'chevron-down-dark.svg',
+    },
+}
 
-if DND_AVAILABLE:
-    class _DnDWindow(ctk.CTk, TkinterDnD.DnDWrapper):
-        """CTk-Hauptfenster mit tkdnd-Unterstützung"""
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.TkdndVersion = TkinterDnD._require(self)
+
+def build_stylesheet(t):
+    """Erzeugt das QSS-Stylesheet für ein Theme-Token-Set"""
+    chevron = (ASSETS / t['chevron']).as_posix()
+    return f"""
+    QMainWindow, QDialog {{
+        background: {t['window']};
+    }}
+    QLabel {{
+        background: transparent;
+        color: {t['text']};
+    }}
+    QLabel#sectionTitle {{
+        color: {t['muted']};
+    }}
+    QLabel#subtitle {{
+        color: {t['muted']};
+    }}
+    QLabel[kind="accent"] {{ color: {t['accent']}; }}
+    QLabel[kind="success"] {{ color: {t['success']}; }}
+    QLabel[kind="error"] {{ color: {t['error']}; }}
+    QLabel[kind="warning"] {{ color: {t['warning']}; }}
+    QLabel[kind="muted"] {{ color: {t['muted']}; }}
+    QLabel#chip {{
+        background: {t['accent_soft']};
+        color: {t['accent']};
+        border-radius: 4px;
+        padding: 0px 5px;
+    }}
+    QLabel#infoBox, QLabel#previewPanel {{
+        background: {t['field']};
+        border: 1px solid {t['border']};
+        border-radius: 8px;
+    }}
+    QLabel#infoBox {{ padding: 10px; }}
+    QLabel#previewPanel {{ color: {t['muted']}; }}
+    QFrame#card {{
+        background: {t['card']};
+        border: 1px solid {t['border']};
+        border-radius: 10px;
+    }}
+    QFrame#dropZone {{
+        background: {t['field']};
+        border: 1.5px dashed {t['border_strong']};
+        border-radius: 8px;
+    }}
+    QFrame#dropZone[dragOver="true"] {{
+        border-color: {t['accent']};
+        background: {t['accent_soft']};
+    }}
+    QFrame#dropZone QLabel {{ color: {t['muted']}; }}
+    QFrame#statusBar {{
+        background: {t['card']};
+        border-top: 1px solid {t['border']};
+    }}
+    QFrame#segmented {{
+        background: {t['field']};
+        border: 1px solid {t['border']};
+        border-radius: 8px;
+    }}
+    QPushButton {{
+        background: transparent;
+        color: {t['text']};
+        border: 1px solid {t['border_strong']};
+        border-radius: 8px;
+        padding: 6px 14px;
+    }}
+    QPushButton:hover {{ background: {t['ghost_hover']}; }}
+    QPushButton:pressed {{ background: {t['border']}; }}
+    QPushButton:disabled {{
+        color: {t['muted']};
+        border-color: {t['border']};
+    }}
+    QPushButton#primary {{
+        background: {t['btn']};
+        color: #ffffff;
+        border: none;
+        font-weight: 600;
+    }}
+    QPushButton#primary:hover {{ background: {t['btn_hover']}; }}
+    QPushButton#primary:pressed {{ background: {t['btn_press']}; }}
+    QPushButton#primary:disabled {{
+        background: {t['border']};
+        color: {t['muted']};
+    }}
+    QPushButton#toolBtn {{
+        background: transparent;
+        border: none;
+        border-radius: 6px;
+        padding: 2px 8px;
+        color: {t['muted']};
+    }}
+    QPushButton#toolBtn:hover {{
+        background: {t['ghost_hover']};
+        color: {t['text']};
+    }}
+    QPushButton#segItem {{
+        background: transparent;
+        border: none;
+        border-radius: 6px;
+        padding: 4px 12px;
+        color: {t['muted']};
+    }}
+    QPushButton#segItem:checked {{
+        background: {t['seg_checked']};
+        color: {t['text']};
+    }}
+    QLineEdit {{
+        background: {t['field']};
+        color: {t['text']};
+        border: 1px solid {t['border']};
+        border-radius: 8px;
+        padding: 5px 8px;
+        selection-background-color: {t['btn']};
+        selection-color: #ffffff;
+    }}
+    QLineEdit:focus {{ border-color: {t['accent']}; }}
+    QLineEdit:disabled {{
+        color: {t['muted']};
+        background: {t['window']};
+    }}
+    QComboBox {{
+        background: {t['field']};
+        color: {t['text']};
+        border: 1px solid {t['border']};
+        border-radius: 8px;
+        padding: 5px 10px;
+    }}
+    QComboBox:hover {{ border-color: {t['border_strong']}; }}
+    QComboBox:focus {{ border-color: {t['accent']}; }}
+    QComboBox::drop-down {{
+        border: none;
+        width: 26px;
+    }}
+    QComboBox::down-arrow {{
+        image: url({chevron});
+        width: 12px;
+        height: 12px;
+    }}
+    QComboBox QAbstractItemView {{
+        background: {t['card']};
+        color: {t['text']};
+        border: 1px solid {t['border']};
+        border-radius: 8px;
+        padding: 4px;
+        selection-background-color: {t['accent_soft']};
+        selection-color: {t['text']};
+        outline: none;
+    }}
+    QCheckBox {{
+        spacing: 8px;
+        color: {t['text']};
+    }}
+    QCheckBox:disabled {{ color: {t['muted']}; }}
+    QCheckBox::indicator {{
+        width: 16px;
+        height: 16px;
+        border: 1px solid {t['border_strong']};
+        border-radius: 4px;
+        background: {t['field']};
+    }}
+    QCheckBox::indicator:hover {{ border-color: {t['muted']}; }}
+    QCheckBox::indicator:checked {{
+        background: {t['btn']};
+        border-color: {t['btn']};
+        image: url({(ASSETS / 'check.svg').as_posix()});
+    }}
+    QCheckBox::indicator:disabled {{
+        border-color: {t['border']};
+        background: {t['window']};
+    }}
+    QSlider::groove:horizontal {{
+        height: 4px;
+        background: {t['border']};
+        border-radius: 2px;
+    }}
+    QSlider::sub-page:horizontal {{
+        background: {t['btn']};
+        border-radius: 2px;
+    }}
+    QSlider::handle:horizontal {{
+        width: 16px;
+        height: 16px;
+        margin: -6px 0;
+        background: {t['card']};
+        border: 2px solid {t['btn']};
+        border-radius: 9px;
+    }}
+    QSlider::handle:horizontal:disabled {{ border-color: {t['border_strong']}; }}
+    QSlider::sub-page:horizontal:disabled {{ background: {t['border_strong']}; }}
+    QProgressBar {{
+        background: {t['field']};
+        border: none;
+        border-radius: 4px;
+    }}
+    QProgressBar::chunk {{
+        background: {t['btn']};
+        border-radius: 4px;
+    }}
+    QListWidget#fileList {{
+        background: {t['field']};
+        border: 1px solid {t['border']};
+        border-radius: 8px;
+        padding: 4px;
+        outline: none;
+    }}
+    QListWidget#fileList::item {{
+        border-radius: 6px;
+        color: {t['text']};
+    }}
+    QListWidget#fileList::item:hover {{ background: {t['ghost_hover']}; }}
+    QListWidget#fileList::item:selected {{ background: {t['accent_soft']}; }}
+    QPlainTextEdit#exifViewer {{
+        background: {t['field']};
+        color: {t['text']};
+        border: 1px solid {t['border']};
+        border-radius: 8px;
+        padding: 6px;
+    }}
+    QScrollBar:vertical {{
+        background: transparent;
+        width: 10px;
+        margin: 2px;
+    }}
+    QScrollBar::handle:vertical {{
+        background: {t['border_strong']};
+        border-radius: 3px;
+        min-height: 24px;
+    }}
+    QScrollBar::handle:vertical:hover {{ background: {t['muted']}; }}
+    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+    QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: transparent; }}
+    QScrollBar:horizontal {{
+        background: transparent;
+        height: 10px;
+        margin: 2px;
+    }}
+    QScrollBar::handle:horizontal {{
+        background: {t['border_strong']};
+        border-radius: 3px;
+        min-width: 24px;
+    }}
+    QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width: 0; }}
+    QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {{ background: transparent; }}
+    QToolTip {{
+        background: {t['card']};
+        color: {t['text']};
+        border: 1px solid {t['border']};
+    }}
+    """
 
 
-def create_window():
-    """Erstellt das Hauptfenster; fällt ohne funktionierendes tkdnd auf CTk zurück"""
-    global DND_AVAILABLE
-    if DND_AVAILABLE:
-        try:
-            return _DnDWindow()
-        except Exception:
-            DND_AVAILABLE = False
-    return ctk.CTk()
+def build_palette(t):
+    """QPalette passend zum Theme -- steuert Fusion-Indikatoren und Menüs"""
+    palette = QPalette()
+    groups = (QPalette.ColorGroup.Active, QPalette.ColorGroup.Inactive)
+    roles = {
+        QPalette.ColorRole.Window: t['window'],
+        QPalette.ColorRole.WindowText: t['text'],
+        QPalette.ColorRole.Base: t['field'],
+        QPalette.ColorRole.AlternateBase: t['card'],
+        QPalette.ColorRole.Text: t['text'],
+        QPalette.ColorRole.Button: t['card'],
+        QPalette.ColorRole.ButtonText: t['text'],
+        QPalette.ColorRole.Highlight: t['btn'],
+        QPalette.ColorRole.HighlightedText: '#ffffff',
+        QPalette.ColorRole.ToolTipBase: t['card'],
+        QPalette.ColorRole.ToolTipText: t['text'],
+        QPalette.ColorRole.PlaceholderText: t['muted'],
+    }
+    for group in groups:
+        for role, value in roles.items():
+            palette.setColor(group, role, QColor(value))
+    disabled = QPalette.ColorGroup.Disabled
+    for role in (QPalette.ColorRole.WindowText, QPalette.ColorRole.Text,
+                 QPalette.ColorRole.ButtonText):
+        palette.setColor(disabled, role, QColor(t['muted']))
+    return palette
 
 
-class PicConverterGUI:
-    def __init__(self, root, ui_scale=1.0):
-        self.root = root
-        self.root.title(tr("PicConverter - Bild- & PDF-Konverter"))
-        self._set_window_icon()
+def pil_to_qimage(img):
+    """PIL-Bild -> QImage (RGBA, mit Kopie der Pixeldaten)"""
+    rgba = img.convert('RGBA')
+    data = rgba.tobytes('raw', 'RGBA')
+    qimage = QImage(data, rgba.width, rgba.height,
+                    QImage.Format.Format_RGBA8888)
+    return qimage.copy()
 
-        # Wunschgröße 1100x900 (in Skalierungseinheiten), aber nie größer
-        # als der Bildschirm -- wichtig bei HiDPI-Skalierung auf kleinen Displays
-        width = min(1100, int(self.root.winfo_screenwidth() * 0.92 / ui_scale))
-        height = min(900, int(self.root.winfo_screenheight() * 0.90 / ui_scale))
-        self.root.geometry(f"{width}x{height}")
-        self.root.minsize(min(960, width), min(700, height))
+
+def repolish(widget):
+    """Wendet Style nach Änderung einer dynamischen Property neu an"""
+    widget.style().unpolish(widget)
+    widget.style().polish(widget)
+
+
+class PreviewLabel(QLabel):
+    """Vorschau-Label, das sein Bild seitenverhältnistreu mitskaliert"""
+
+    def __init__(self, placeholder):
+        super().__init__(placeholder)
+        self._source = None
+        self.setObjectName("previewPanel")
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setMinimumSize(200, 200)
+
+    def set_image(self, pil_img):
+        self._source = pil_to_qimage(pil_img)
+        self._update_scaled()
+
+    def clear_image(self, placeholder):
+        self._source = None
+        self.setPixmap(QPixmap())
+        self.setText(placeholder)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_scaled()
+
+    def _update_scaled(self):
+        if self._source is None:
+            return
+        dpr = self.devicePixelRatioF()
+        avail_w = max(1, int((self.width() - 24) * dpr))
+        avail_h = max(1, int((self.height() - 24) * dpr))
+        # Nie über die Quellauflösung hinaus vergrößern
+        target_w = min(avail_w, self._source.width())
+        target_h = min(avail_h, self._source.height())
+        pixmap = QPixmap.fromImage(self._source).scaled(
+            target_w, target_h, Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation)
+        pixmap.setDevicePixelRatio(dpr)
+        self.setText("")
+        self.setPixmap(pixmap)
+
+
+class DropZone(QFrame):
+    """Klickbare Drop-Fläche; Datei-Drops nimmt das Hauptfenster entgegen"""
+
+    clicked = Signal()
+
+    def __init__(self):
+        super().__init__()
+        self.setObjectName("dropZone")
+        self.setProperty("dragOver", False)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
+
+    def set_drag_over(self, active):
+        self.setProperty("dragOver", active)
+        repolish(self)
+
+
+class _WorkerSignals(QObject):
+    """Signale, um Ergebnisse aus dem Worker-Thread in den GUI-Thread zu holen"""
+    progress = Signal(float)
+    done = Signal(list)
+
+
+class PicConverterGUI(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle(tr("PicConverter - Bild- & PDF-Konverter"))
+        icon_path = ASSETS / 'icon.png'
+        if icon_path.exists():
+            self.setWindowIcon(QIcon(str(icon_path)))
 
         self.input_paths = []          # Warteschlange aller geladenen Dateien
         self.selected_index = None     # Index der Datei, die Vorschau/Infos zeigt
         self.image = None              # geladenes Bild der ausgewählten Datei
-        self.preview_image = None
         self.pdf_page_count = 0        # 0 = ausgewählte Datei ist keine PDF
         self.prefilled_size = ('', '') # zuletzt vorbefüllte Auflösungswerte
         self.exif_overrides = {}       # EXIF-Änderungen aus dem Editor
         self.output_file = None        # gewählte Zieldatei (nur Einzelkonvertierung)
         self.output_dir = None         # gewählter Zielordner
         self.last_output_dir = None    # für den "Ordner öffnen"-Button
-        self.thumbnails = {}           # Pfad -> CTkImage für die Dateiliste
+        self.thumbnails = {}           # Pfad -> QPixmap für die Dateiliste
+        self.appearance_mode = 'system'
+        self._current_theme = THEMES['dark']
+
+        self._signals = _WorkerSignals()
+        self._signals.progress.connect(
+            lambda p: self.progress_bar.setValue(round(p * 100)))
+        self._signals.done.connect(self._on_convert_done)
 
         self.setup_fonts()
         self.setup_ui()
+        self.apply_theme(self.appearance_mode)
         self.restore_settings()
-        if DND_AVAILABLE:
-            self.setup_dnd()
-        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.setAcceptDrops(True)
 
-    def _set_window_icon(self):
-        icon_path = Path(__file__).parent / 'assets' / 'icon.png'
-        if icon_path.exists():
-            try:
-                self.root.iconphoto(True, tk.PhotoImage(file=str(icon_path)))
-            except Exception:
-                pass
+        # Systemfarbschema-Wechsel live übernehmen
+        QGuiApplication.styleHints().colorSchemeChanged.connect(
+            self._on_system_scheme_changed)
+
+        # Wunschgröße 1100x880, aber nie größer als der Bildschirm
+        screen = QGuiApplication.primaryScreen().availableGeometry()
+        width = min(1100, int(screen.width() * 0.92))
+        height = min(880, int(screen.height() * 0.90))
+        self.resize(width, height)
+        self.setMinimumSize(min(960, width), min(680, height))
+
+    # ---------- Fonts und Grundgerüst ----------
 
     def setup_fonts(self):
-        try:
-            mono_family = tkfont.nametofont("TkFixedFont").actual("family")
-        except Exception:
-            mono_family = "Courier"
-        self.font_title = ctk.CTkFont(size=26, weight="bold")
-        self.font_subtitle = ctk.CTkFont(size=13)
-        self.font_section = ctk.CTkFont(size=14, weight="bold")
-        self.font_bold = ctk.CTkFont(size=13, weight="bold")
-        self.font_mono = ctk.CTkFont(family=mono_family, size=12)
+        base = QApplication.font()
+        self.font_section = QApplication.font()
+        self.font_section.setPointSizeF(max(8.0, base.pointSizeF() * 0.82))
+        self.font_section.setWeight(self.font_section.Weight.DemiBold)
+        self.font_section.setLetterSpacing(
+            self.font_section.SpacingType.PercentageSpacing, 108)
+        self.font_bold = QApplication.font()
+        self.font_bold.setWeight(self.font_bold.Weight.DemiBold)
+        self.font_small = QApplication.font()
+        self.font_small.setPointSizeF(max(7.5, base.pointSizeF() * 0.78))
+        self.font_mono = QFontDatabase.systemFont(
+            QFontDatabase.SystemFont.FixedFont)
 
     def setup_ui(self):
-        self.root.grid_columnconfigure(0, weight=1)
-        self.root.grid_rowconfigure(1, weight=1)
+        central = QWidget()
+        self.setCentralWidget(central)
+        outer = QVBoxLayout(central)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        body = QWidget()
+        outer.addWidget(body, 1)
+        body_layout = QVBoxLayout(body)
+        body_layout.setContentsMargins(PAD, PAD, PAD, PAD)
+        body_layout.setSpacing(12)
 
         # ---------- Header ----------
-        header = ctk.CTkFrame(self.root, fg_color="transparent")
-        header.grid(row=0, column=0, sticky="ew", padx=PAD, pady=(PAD, 8))
-        header.grid_columnconfigure(0, weight=1)
+        header = QHBoxLayout()
+        header.setSpacing(PAD)
+        body_layout.addLayout(header)
 
-        ctk.CTkLabel(header, text="🖼️ PicConverter", font=self.font_title,
-                     anchor="w").grid(row=0, column=0, sticky="w")
-        ctk.CTkLabel(header, text=tr("Moderner Bild- & PDF-Konverter"),
-                     font=self.font_subtitle,
-                     text_color=COLORS['muted'], anchor="w").grid(row=1, column=0, sticky="w")
+        title_box = QVBoxLayout()
+        title_box.setSpacing(2)
+        self.logo_label = QLabel("PicConverter")
+        title_font = QApplication.font()
+        title_font.setPointSizeF(title_font.pointSizeF() * 1.9)
+        title_font.setWeight(title_font.Weight.Bold)
+        self.logo_label.setFont(title_font)
+        title_box.addWidget(self.logo_label)
+        subtitle = QLabel(tr("Moderner Bild- & PDF-Konverter"))
+        subtitle.setObjectName("subtitle")
+        title_box.addWidget(subtitle)
+        header.addLayout(title_box)
+        header.addStretch(1)
 
-        self.appearance_labels = {tr("System"): "system", tr("Dunkel"): "dark",
-                                  tr("Hell"): "light"}
-        self.appearance_switch = ctk.CTkSegmentedButton(
-            header, values=list(self.appearance_labels),
-            command=self.on_appearance_change)
-        self.appearance_switch.set(tr("System"))
-        self.appearance_switch.grid(row=0, column=1, rowspan=2, sticky="e")
+        # Appearance-Umschalter als Segmented Control
+        seg_frame = QFrame()
+        seg_frame.setObjectName("segmented")
+        seg_layout = QHBoxLayout(seg_frame)
+        seg_layout.setContentsMargins(3, 3, 3, 3)
+        seg_layout.setSpacing(2)
+        self.appearance_group = QButtonGroup(self)
+        self.appearance_buttons = {}
+        for label, mode in ((tr("System"), 'system'), (tr("Dunkel"), 'dark'),
+                            (tr("Hell"), 'light')):
+            btn = QPushButton(label)
+            btn.setObjectName("segItem")
+            btn.setCheckable(True)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda _, m=mode: self.on_appearance_change(m))
+            seg_layout.addWidget(btn)
+            self.appearance_group.addButton(btn)
+            self.appearance_buttons[mode] = btn
+        self.appearance_buttons['system'].setChecked(True)
+        header.addWidget(seg_frame, 0, Qt.AlignmentFlag.AlignTop)
 
         # ---------- Inhalt: zwei Spalten ----------
-        content = ctk.CTkFrame(self.root, fg_color="transparent")
-        content.grid(row=1, column=0, sticky="nsew", padx=PAD, pady=(8, 8))
-        content.grid_columnconfigure(0, weight=1, uniform="col")
-        content.grid_columnconfigure(1, weight=1, uniform="col")
-        content.grid_rowconfigure(0, weight=1)
+        content = QHBoxLayout()
+        content.setSpacing(PAD)
+        body_layout.addLayout(content, 1)
 
-        left = ctk.CTkFrame(content, fg_color="transparent")
-        left.grid(row=0, column=0, sticky="nsew", padx=(0, PAD // 2))
-        left.grid_columnconfigure(0, weight=1)
-        left.grid_rowconfigure(1, weight=1)
-
-        right = ctk.CTkFrame(content, fg_color="transparent")
-        right.grid(row=0, column=1, sticky="nsew", padx=(PAD // 2, 0))
-        right.grid_columnconfigure(0, weight=1)
+        left = QVBoxLayout()
+        left.setSpacing(12)
+        right = QVBoxLayout()
+        right.setSpacing(12)
+        content.addLayout(left, 1)
+        content.addLayout(right, 1)
 
         # ---------- Eingabedateien ----------
-        input_card, input_content = self.create_card(left, tr("📁 Eingabedateien"))
-        input_card.grid(row=0, column=0, sticky="ew", pady=(0, 12))
+        input_card, input_layout = self.create_card(tr("Eingabedateien"))
+        left.addWidget(input_card)
 
-        self.drop_zone = ctk.CTkFrame(input_content, corner_radius=8, border_width=2,
-                                      border_color=COLORS['border'],
-                                      fg_color=COLORS['panel'])
-        self.drop_zone.grid(row=0, column=0, sticky="ew")
-        self.drop_zone.grid_columnconfigure(0, weight=1)
+        self.drop_zone = DropZone()
+        self.drop_zone.clicked.connect(self.select_files)
+        drop_layout = QVBoxLayout(self.drop_zone)
+        drop_layout.setContentsMargins(PAD, 12, PAD, 12)
+        drop_text = tr("Bilder oder PDFs hierher ziehen\noder klicken zum Auswählen")
+        self.drop_label = QLabel(drop_text)
+        self.drop_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        drop_layout.addWidget(self.drop_label)
+        input_layout.addWidget(self.drop_zone)
 
-        drop_text = (tr("Bilder oder PDFs hierher ziehen\noder klicken zum Auswählen")
-                     if DND_AVAILABLE else tr("Klicken, um Bilder oder PDFs auszuwählen"))
-        self.drop_label = ctk.CTkLabel(self.drop_zone, text=drop_text,
-                                       text_color=COLORS['muted'], justify="center")
-        self.drop_label.grid(row=0, column=0, padx=PAD, pady=14)
-        for widget in (self.drop_zone, self.drop_label):
-            widget.bind("<Button-1>", lambda e: self.select_files())
-            widget.configure(cursor="hand2")
+        file_row = QHBoxLayout()
+        file_row.setSpacing(8)
+        input_layout.addLayout(file_row)
 
-        file_row = ctk.CTkFrame(input_content, fg_color="transparent")
-        file_row.grid(row=1, column=0, sticky="ew", pady=(10, 0))
-        file_row.grid_columnconfigure(0, weight=1)
+        self.input_label = QLabel(tr("Keine Dateien ausgewählt"))
+        self.set_kind(self.input_label, 'muted')
+        file_row.addWidget(self.input_label, 1)
 
-        self.input_label = ctk.CTkLabel(file_row, text=tr("Keine Dateien ausgewählt"),
-                                        anchor="w", text_color=COLORS['muted'])
-        self.input_label.grid(row=0, column=0, sticky="w")
-
-        ctk.CTkButton(file_row, text=tr("Dateien auswählen"), width=140,
-                      command=self.select_files).grid(row=0, column=1, padx=(PAD, 0))
-        ctk.CTkButton(file_row, text=tr("Leeren"), width=70,
-                      fg_color="transparent", border_width=1,
-                      border_color=COLORS['border'], hover_color=COLORS['panel'],
-                      text_color=("gray10", "gray90"),
-                      command=self.clear_files).grid(row=0, column=2, padx=(8, 0))
+        select_btn = QPushButton(tr("Dateien auswählen"))
+        select_btn.clicked.connect(self.select_files)
+        file_row.addWidget(select_btn)
+        clear_btn = QPushButton(tr("Leeren"))
+        clear_btn.clicked.connect(self.clear_files)
+        file_row.addWidget(clear_btn)
 
         # Dateiliste -- wird erst ab zwei Dateien eingeblendet
-        self.file_list = ctk.CTkScrollableFrame(input_content, height=96,
-                                                fg_color=COLORS['panel'],
-                                                corner_radius=8)
-        try:
-            # Workaround: die interne Scrollbar erzwingt sonst ~200px Mindesthöhe
-            self.file_list._scrollbar.configure(height=0)
-        except AttributeError:
-            pass
-        self.file_list.grid(row=2, column=0, sticky="ew", pady=(10, 0))
-        self.file_list.grid_columnconfigure(0, weight=1)
-        self.file_list.grid_remove()
+        self.file_list = QListWidget()
+        self.file_list.setObjectName("fileList")
+        self.file_list.setFixedHeight(108)
+        self.file_list.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.file_list.currentRowChanged.connect(self.on_row_changed)
+        input_layout.addWidget(self.file_list)
+        self.file_list.hide()
 
         # PDF-Seitennavigation -- wird nur bei geladener PDF eingeblendet
-        self.page_row = ctk.CTkFrame(input_content, fg_color="transparent")
-        self.page_row.grid(row=3, column=0, sticky="ew", pady=(10, 0))
-        self.page_row.grid_remove()
-
-        ctk.CTkLabel(self.page_row, text=tr("PDF-Seite")).grid(row=0, column=0, padx=(0, 8))
-        ctk.CTkButton(self.page_row, text="◀", width=32,
-                      command=lambda: self.step_page(-1)).grid(row=0, column=1)
-        self.page_var = tk.StringVar(value="1")
-        self.page_entry = ctk.CTkEntry(self.page_row, textvariable=self.page_var,
-                                       width=56, justify="center")
-        self.page_entry.grid(row=0, column=2, padx=6)
-        self.page_entry.bind("<Return>", lambda e: self.on_page_change())
-        self.page_entry.bind("<FocusOut>", lambda e: self.on_page_change())
-        ctk.CTkButton(self.page_row, text="▶", width=32,
-                      command=lambda: self.step_page(1)).grid(row=0, column=3)
-        self.page_count_label = ctk.CTkLabel(self.page_row, text=tr("von {n}").format(n=1),
-                                             text_color=COLORS['muted'])
-        self.page_count_label.grid(row=0, column=4, padx=(8, 0))
-
-        self.all_pages_var = tk.BooleanVar(value=False)
-        ctk.CTkCheckBox(self.page_row, text=tr("Alle Seiten exportieren"),
-                        variable=self.all_pages_var).grid(row=0, column=5, padx=(PAD, 0))
+        self.page_row = QWidget()
+        page_layout = QHBoxLayout(self.page_row)
+        page_layout.setContentsMargins(0, 0, 0, 0)
+        page_layout.setSpacing(6)
+        page_layout.addWidget(QLabel(tr("PDF-Seite")))
+        prev_btn = QPushButton("‹")
+        prev_btn.setObjectName("toolBtn")
+        prev_btn.clicked.connect(lambda: self.step_page(-1))
+        page_layout.addWidget(prev_btn)
+        self.page_entry = QLineEdit("1")
+        self.page_entry.setFixedWidth(52)
+        self.page_entry.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.page_entry.returnPressed.connect(self.on_page_change)
+        self.page_entry.editingFinished.connect(self.on_page_change)
+        page_layout.addWidget(self.page_entry)
+        next_btn = QPushButton("›")
+        next_btn.setObjectName("toolBtn")
+        next_btn.clicked.connect(lambda: self.step_page(1))
+        page_layout.addWidget(next_btn)
+        self.page_count_label = QLabel(tr("von {n}").format(n=1))
+        self.set_kind(self.page_count_label, 'muted')
+        page_layout.addWidget(self.page_count_label)
+        self.all_pages_check = QCheckBox(tr("Alle Seiten exportieren"))
+        page_layout.addWidget(self.all_pages_check)
+        page_layout.addStretch(1)
+        input_layout.addWidget(self.page_row)
+        self.page_row.hide()
 
         # ---------- Vorschau ----------
-        preview_card, preview_content = self.create_card(left, tr("👁️ Vorschau"))
-        preview_card.grid(row=1, column=0, sticky="nsew", pady=(0, 12))
-        preview_card.grid_rowconfigure(1, weight=1)
-        preview_content.grid_rowconfigure(0, weight=1)
-
-        self.preview_label = ctk.CTkLabel(preview_content, text=tr("Kein Bild geladen"),
-                                          text_color=COLORS['muted'], corner_radius=8,
-                                          fg_color=COLORS['panel'], height=240)
-        self.preview_label.grid(row=0, column=0, sticky="nsew")
+        preview_card, preview_layout = self.create_card(tr("Vorschau"))
+        left.addWidget(preview_card, 1)
+        self.preview_label = PreviewLabel(tr("Kein Bild geladen"))
+        self.set_kind(self.preview_label, 'muted')
+        preview_layout.addWidget(self.preview_label, 1)
 
         # ---------- Bildinformationen ----------
-        info_card, info_content = self.create_card(left, tr("ℹ️ Bildinformationen"))
-        info_card.grid(row=2, column=0, sticky="ew")
-
-        self.info_text = ctk.CTkTextbox(info_content, height=110, corner_radius=8,
-                                        font=self.font_mono, fg_color=COLORS['panel'],
-                                        activate_scrollbars=False)
-        self.info_text.grid(row=0, column=0, sticky="ew")
-        self.info_text.configure(state="disabled")
+        info_card, info_layout = self.create_card(tr("Bildinformationen"))
+        left.addWidget(info_card)
+        self.info_label = QLabel("")
+        self.info_label.setObjectName("infoBox")
+        self.info_label.setFont(self.font_mono)
+        self.info_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.info_label.setMinimumHeight(96)
+        self.info_label.setAlignment(Qt.AlignmentFlag.AlignTop |
+                                     Qt.AlignmentFlag.AlignLeft)
+        info_layout.addWidget(self.info_label)
 
         # ---------- Konvertierungseinstellungen ----------
-        settings_card, settings = self.create_card(right, tr("⚙️ Konvertierungseinstellungen"))
-        settings_card.grid(row=0, column=0, sticky="ew", pady=(0, 12))
-        settings.grid_columnconfigure(0, weight=1)
+        settings_card, settings = self.create_card(tr("Konvertierungseinstellungen"))
+        right.addWidget(settings_card)
 
-        # Preset
-        preset_row = ctk.CTkFrame(settings, fg_color="transparent")
-        preset_row.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
-        preset_row.grid_columnconfigure(1, weight=1)
+        preset_row = QHBoxLayout()
+        preset_row.setSpacing(8)
+        settings.addLayout(preset_row)
+        preset_row.addWidget(QLabel(tr("Preset")))
+        self.preset_menu = QComboBox()
+        self.preset_menu.addItems(self._preset_names())
+        self.preset_menu.textActivated.connect(self.on_preset_selected)
+        preset_row.addWidget(self.preset_menu, 1)
+        preset_save_btn = QPushButton(tr("Speichern"))
+        preset_save_btn.clicked.connect(self.save_preset)
+        preset_row.addWidget(preset_save_btn)
 
-        ctk.CTkLabel(preset_row, text=tr("Preset")).grid(row=0, column=0, padx=(0, 8))
-        self.preset_var = tk.StringVar(value=tr("(keins)"))
-        self.preset_menu = ctk.CTkOptionMenu(preset_row, variable=self.preset_var,
-                                             values=self._preset_names(), width=170,
-                                             command=self.on_preset_selected)
-        self.preset_menu.grid(row=0, column=1, sticky="w")
-        ctk.CTkButton(preset_row, text=tr("Speichern"), width=100,
-                      fg_color="transparent", border_width=1,
-                      border_color=COLORS['border'], hover_color=COLORS['panel'],
-                      text_color=("gray10", "gray90"),
-                      command=self.save_preset).grid(row=0, column=2, sticky="e")
-
-        # Format
-        ctk.CTkLabel(settings, text=tr("Ausgabeformat"), anchor="w").grid(
-            row=1, column=0, sticky="w")
-        self.format_var = tk.StringVar(value=list(SUPPORTED_FORMATS.keys())[0])
-        self.format_menu = ctk.CTkOptionMenu(settings, variable=self.format_var,
-                                             values=list(SUPPORTED_FORMATS.keys()),
-                                             width=230, command=self.on_format_change)
-        self.format_menu.grid(row=2, column=0, columnspan=2, sticky="w", pady=(4, 10))
+        settings.addSpacing(2)
+        settings.addWidget(QLabel(tr("Ausgabeformat")))
+        self.format_menu = QComboBox()
+        self.format_menu.addItems(list(SUPPORTED_FORMATS.keys()))
+        self.format_menu.textActivated.connect(self.on_format_change)
+        settings.addWidget(self.format_menu)
 
         # PDF zusammenfassen -- nur bei Zielformat PDF sichtbar
-        self.merge_var = tk.BooleanVar(value=False)
-        self.merge_check = ctk.CTkCheckBox(
-            settings, text=tr("Alle Eingaben in eine PDF zusammenfassen"),
-            variable=self.merge_var, command=self.update_output_path)
-        self.merge_check.grid(row=3, column=0, columnspan=2, sticky="w", pady=(0, 10))
-        self.merge_check.grid_remove()
+        self.merge_check = QCheckBox(tr("Alle Eingaben in eine PDF zusammenfassen"))
+        self.merge_check.toggled.connect(lambda _: self.update_output_path())
+        settings.addWidget(self.merge_check)
+        self.merge_check.hide()
 
-        # Qualität
-        self.quality_label = ctk.CTkLabel(settings, text=tr("Qualität"), anchor="w")
-        self.quality_label.grid(row=4, column=0, sticky="w")
+        quality_row = QHBoxLayout()
+        settings.addLayout(quality_row)
+        self.quality_label = QLabel(tr("Qualität"))
+        quality_row.addWidget(self.quality_label, 1)
+        self.quality_value_label = QLabel("85")
+        self.quality_value_label.setFont(self.font_bold)
+        self.set_kind(self.quality_value_label, 'accent')
+        quality_row.addWidget(self.quality_value_label)
 
-        self.quality_value_label = ctk.CTkLabel(settings, text="85", font=self.font_bold,
-                                                text_color=COLORS['accent'])
-        self.quality_value_label.grid(row=4, column=1, sticky="e")
+        self.quality_slider = QSlider(Qt.Orientation.Horizontal)
+        self.quality_slider.setRange(1, 100)
+        self.quality_slider.setValue(85)
+        self.quality_slider.valueChanged.connect(self.on_quality_change)
+        settings.addWidget(self.quality_slider)
 
-        self.quality_var = tk.IntVar(value=85)
-        self.quality_slider = ctk.CTkSlider(settings, from_=1, to=100, number_of_steps=99,
-                                            variable=self.quality_var,
-                                            command=self.on_quality_change)
-        self.quality_slider.grid(row=5, column=0, columnspan=2, sticky="ew", pady=(4, 6))
+        target_row = QHBoxLayout()
+        target_row.setSpacing(8)
+        settings.addLayout(target_row)
+        self.target_check = QCheckBox(tr("Zielgröße:"))
+        self.target_check.toggled.connect(lambda _: self.on_target_toggle())
+        target_row.addWidget(self.target_check)
+        self.target_entry = QLineEdit("500")
+        self.target_entry.setFixedWidth(76)
+        self.target_entry.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        target_row.addWidget(self.target_entry)
+        target_hint = QLabel(tr("KB (Qualität wird automatisch gesucht)"))
+        self.set_kind(target_hint, 'muted')
+        target_row.addWidget(target_hint)
+        target_row.addStretch(1)
 
-        # Zielgröße statt Qualität (nur JPEG/WebP)
-        target_row = ctk.CTkFrame(settings, fg_color="transparent")
-        target_row.grid(row=6, column=0, columnspan=2, sticky="ew", pady=(0, 10))
+        resolution_row = QHBoxLayout()
+        resolution_row.setSpacing(6)
+        settings.addLayout(resolution_row)
+        resolution_row.addWidget(QLabel(tr("Auflösung")))
+        resolution_row.addSpacing(4)
+        self.width_entry = QLineEdit()
+        self.width_entry.setFixedWidth(76)
+        self.width_entry.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        resolution_row.addWidget(self.width_entry)
+        resolution_row.addWidget(QLabel("×"))
+        self.height_entry = QLineEdit()
+        self.height_entry.setFixedWidth(76)
+        self.height_entry.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        resolution_row.addWidget(self.height_entry)
+        resolution_row.addWidget(QLabel("px"))
+        resolution_row.addStretch(1)
 
-        self.use_target_var = tk.BooleanVar(value=False)
-        self.target_check = ctk.CTkCheckBox(target_row, text=tr("Zielgröße:"),
-                                            variable=self.use_target_var,
-                                            command=self.on_target_toggle)
-        self.target_check.grid(row=0, column=0)
-        self.target_var = tk.StringVar(value="500")
-        self.target_entry = ctk.CTkEntry(target_row, textvariable=self.target_var,
-                                         width=80, justify="center")
-        self.target_entry.grid(row=0, column=1, padx=(8, 6))
-        ctk.CTkLabel(target_row, text=tr("KB (Qualität wird automatisch gesucht)"),
-                     text_color=COLORS['muted']).grid(row=0, column=2)
+        self.aspect_check = QCheckBox(tr("Seitenverhältnis beibehalten"))
+        self.aspect_check.setChecked(True)
+        settings.addWidget(self.aspect_check)
 
-        # Auflösung
-        resolution_row = ctk.CTkFrame(settings, fg_color="transparent")
-        resolution_row.grid(row=7, column=0, columnspan=2, sticky="ew", pady=(0, 6))
-
-        ctk.CTkLabel(resolution_row, text=tr("Auflösung")).grid(row=0, column=0, padx=(0, 10))
-        self.width_var = tk.StringVar()
-        self.height_var = tk.StringVar()
-        ctk.CTkEntry(resolution_row, textvariable=self.width_var,
-                     width=80, justify="center").grid(row=0, column=1)
-        ctk.CTkLabel(resolution_row, text="×").grid(row=0, column=2, padx=6)
-        ctk.CTkEntry(resolution_row, textvariable=self.height_var,
-                     width=80, justify="center").grid(row=0, column=3)
-        ctk.CTkLabel(resolution_row, text="px").grid(row=0, column=4, padx=(6, 0))
-
-        self.aspect_ratio_var = tk.BooleanVar(value=True)
-        ctk.CTkCheckBox(settings, text=tr("Seitenverhältnis beibehalten"),
-                        variable=self.aspect_ratio_var).grid(
-            row=8, column=0, columnspan=2, sticky="w", pady=(4, 10))
-
-        # Wasserzeichen
-        watermark_row = ctk.CTkFrame(settings, fg_color="transparent")
-        watermark_row.grid(row=9, column=0, columnspan=2, sticky="ew", pady=(0, 10))
-        watermark_row.grid_columnconfigure(1, weight=1)
-
-        self.watermark_var = tk.BooleanVar(value=False)
-        ctk.CTkCheckBox(watermark_row, text=tr("Wasserzeichen:"),
-                        variable=self.watermark_var).grid(row=0, column=0)
-        self.watermark_text_var = tk.StringVar()
-        ctk.CTkEntry(watermark_row, textvariable=self.watermark_text_var,
-                     placeholder_text=tr("Text, z.B. © 2026")).grid(
-            row=0, column=1, sticky="ew", padx=(8, 6))
-        self.watermark_pos_var = tk.StringVar(value=tr('unten-rechts'))
+        watermark_row = QHBoxLayout()
+        watermark_row.setSpacing(6)
+        settings.addLayout(watermark_row)
+        self.watermark_check = QCheckBox(tr("Wasserzeichen:"))
+        watermark_row.addWidget(self.watermark_check)
+        self.watermark_text_entry = QLineEdit()
+        self.watermark_text_entry.setPlaceholderText(tr("Text, z.B. © 2026"))
+        watermark_row.addWidget(self.watermark_text_entry, 1)
         self.watermark_pos_labels = {tr(p): p for p in core.WATERMARK_POSITIONS}
-        ctk.CTkOptionMenu(watermark_row, variable=self.watermark_pos_var,
-                          values=list(self.watermark_pos_labels), width=130).grid(
-            row=0, column=2, padx=(0, 6))
-        self.watermark_opacity_var = tk.StringVar(value="50")
-        ctk.CTkEntry(watermark_row, textvariable=self.watermark_opacity_var,
-                     width=46, justify="center").grid(row=0, column=3)
-        ctk.CTkLabel(watermark_row, text="%").grid(row=0, column=4, padx=(4, 0))
+        self.watermark_pos_menu = QComboBox()
+        self.watermark_pos_menu.addItems(list(self.watermark_pos_labels))
+        self.watermark_pos_menu.setCurrentText(tr('unten-rechts'))
+        watermark_row.addWidget(self.watermark_pos_menu)
+        self.watermark_opacity_entry = QLineEdit("50")
+        self.watermark_opacity_entry.setFixedWidth(44)
+        self.watermark_opacity_entry.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        watermark_row.addWidget(self.watermark_opacity_entry)
+        watermark_row.addWidget(QLabel("%"))
 
-        # Größenschätzung
-        estimate_row = ctk.CTkFrame(settings, fg_color="transparent")
-        estimate_row.grid(row=10, column=0, columnspan=2, sticky="ew")
-        estimate_row.grid_columnconfigure(1, weight=1)
-
-        ctk.CTkButton(estimate_row, text=tr("Größe schätzen"), width=140,
-                      fg_color="transparent", border_width=1,
-                      border_color=COLORS['border'],
-                      hover_color=COLORS['panel'],
-                      text_color=("gray10", "gray90"),
-                      command=self.estimate_size).grid(row=0, column=0)
-
-        self.estimate_label = ctk.CTkLabel(estimate_row,
-                                           text=tr("Geschätzte Ausgabegröße: -- MB"),
-                                           anchor="w", justify="left",
-                                           text_color=COLORS['warning'])
-        self.estimate_label.grid(row=0, column=1, sticky="w", padx=(12, 0))
+        estimate_row = QHBoxLayout()
+        estimate_row.setSpacing(12)
+        settings.addLayout(estimate_row)
+        estimate_btn = QPushButton(tr("Größe schätzen"))
+        estimate_btn.clicked.connect(self.estimate_size)
+        estimate_row.addWidget(estimate_btn)
+        self.estimate_label = QLabel(tr("Geschätzte Ausgabegröße: -- MB"))
+        self.set_kind(self.estimate_label, 'muted')
+        estimate_row.addWidget(self.estimate_label, 1)
 
         # ---------- EXIF-Metadaten ----------
-        exif_card, exif_content = self.create_card(right, tr("🏷️ EXIF-Metadaten"))
-        exif_card.grid(row=1, column=0, sticky="ew", pady=(0, 12))
+        exif_card, exif_layout = self.create_card(tr("EXIF-Metadaten"))
+        right.addWidget(exif_card)
 
-        exif_row = ctk.CTkFrame(exif_content, fg_color="transparent")
-        exif_row.grid(row=0, column=0, sticky="ew")
-        exif_row.grid_columnconfigure(1, weight=1)
+        exif_row = QHBoxLayout()
+        exif_row.setSpacing(8)
+        exif_layout.addLayout(exif_row)
+        self.exif_strip_check = QCheckBox(tr("Metadaten entfernen"))
+        exif_row.addWidget(self.exif_strip_check, 1)
+        exif_btn = QPushButton(tr("Anzeigen / Bearbeiten"))
+        exif_btn.clicked.connect(self.open_exif_editor)
+        exif_row.addWidget(exif_btn)
 
-        self.exif_strip_var = tk.BooleanVar(value=False)
-        ctk.CTkCheckBox(exif_row, text=tr("Metadaten entfernen"),
-                        variable=self.exif_strip_var).grid(row=0, column=0, sticky="w")
-
-        ctk.CTkButton(exif_row, text=tr("Anzeigen / Bearbeiten"), width=170,
-                      fg_color="transparent", border_width=1,
-                      border_color=COLORS['border'], hover_color=COLORS['panel'],
-                      text_color=("gray10", "gray90"),
-                      command=self.open_exif_editor).grid(row=0, column=2, sticky="e")
-
-        self.exif_hint_label = ctk.CTkLabel(exif_content, text="", anchor="w",
-                                            text_color=COLORS['accent'])
-        self.exif_hint_label.grid(row=1, column=0, sticky="w", pady=(6, 0))
-        self.exif_hint_label.grid_remove()
+        self.exif_hint_label = QLabel("")
+        self.set_kind(self.exif_hint_label, 'accent')
+        exif_layout.addWidget(self.exif_hint_label)
+        self.exif_hint_label.hide()
 
         # ---------- Ausgabe & Konvertierung ----------
-        action_card, action_content = self.create_card(right, tr("💾 Ausgabe & Konvertierung"))
-        action_card.grid(row=2, column=0, sticky="ew")
-        action_content.grid_columnconfigure(0, weight=1)
+        action_card, action_layout = self.create_card(tr("Ausgabe & Konvertierung"))
+        right.addWidget(action_card)
 
-        output_row = ctk.CTkFrame(action_content, fg_color="transparent")
-        output_row.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 8))
-        output_row.grid_columnconfigure(0, weight=1)
+        output_row = QHBoxLayout()
+        output_row.setSpacing(8)
+        action_layout.addLayout(output_row)
+        self.output_label = QLabel(tr("Automatisch generiert"))
+        self.set_kind(self.output_label, 'muted')
+        output_row.addWidget(self.output_label, 1)
+        output_btn = QPushButton(tr("Speicherort wählen"))
+        output_btn.clicked.connect(self.select_output)
+        output_row.addWidget(output_btn)
 
-        self.output_label = ctk.CTkLabel(output_row, text=tr("Automatisch generiert"),
-                                         anchor="w", text_color=COLORS['muted'])
-        self.output_label.grid(row=0, column=0, sticky="w")
+        self.overwrite_check = QCheckBox(
+            tr("Vorhandene Dateien überschreiben (sonst \"name (1)\")"))
+        action_layout.addWidget(self.overwrite_check)
 
-        ctk.CTkButton(output_row, text=tr("Speicherort wählen"), width=160,
-                      command=self.select_output).grid(row=0, column=1, padx=(PAD, 0))
+        self.convert_button = QPushButton(tr("Konvertieren starten"))
+        self.convert_button.setObjectName("primary")
+        self.convert_button.setMinimumHeight(44)
+        self.convert_button.setEnabled(False)
+        self.convert_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.convert_button.clicked.connect(self.convert)
+        action_layout.addWidget(self.convert_button)
 
-        self.overwrite_var = tk.BooleanVar(value=False)
-        ctk.CTkCheckBox(action_content,
-                        text=tr("Vorhandene Dateien überschreiben (sonst \"name (1)\")"),
-                        variable=self.overwrite_var).grid(
-            row=1, column=0, columnspan=2, sticky="w", pady=(0, 10))
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.setFixedHeight(8)
+        action_layout.addWidget(self.progress_bar)
 
-        self.convert_button = ctk.CTkButton(action_content, text=tr("Konvertieren starten"),
-                                            height=46, font=self.font_bold,
-                                            fg_color="#2fa572", hover_color="#106a43",
-                                            state="disabled",
-                                            command=self.convert)
-        self.convert_button.grid(row=2, column=0, columnspan=2, sticky="ew")
+        result_row = QHBoxLayout()
+        result_row.setSpacing(8)
+        action_layout.addLayout(result_row)
+        self.result_label = QLabel("")
+        self.result_label.setWordWrap(True)
+        result_row.addWidget(self.result_label, 1)
+        self.result_label.hide()
+        self.open_folder_button = QPushButton(tr("Ordner öffnen"))
+        self.open_folder_button.clicked.connect(self.open_output_folder)
+        result_row.addWidget(self.open_folder_button, 0,
+                             Qt.AlignmentFlag.AlignTop)
+        self.open_folder_button.hide()
 
-        self.progress_bar = ctk.CTkProgressBar(action_content, height=10)
-        self.progress_bar.set(0)
-        self.progress_bar.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(10, 0))
-
-        self.result_label = ctk.CTkLabel(action_content, text="", anchor="w",
-                                         justify="left", wraplength=420)
-        self.result_label.grid(row=4, column=0, sticky="w", pady=(8, 0))
-        self.result_label.grid_remove()
-
-        self.open_folder_button = ctk.CTkButton(
-            action_content, text=tr("📂 Ordner öffnen"), width=140,
-            fg_color="transparent", border_width=1,
-            border_color=COLORS['border'], hover_color=COLORS['panel'],
-            text_color=("gray10", "gray90"),
-            command=self.open_output_folder)
-        self.open_folder_button.grid(row=4, column=1, sticky="e", pady=(8, 0))
-        self.open_folder_button.grid_remove()
+        right.addStretch(1)
 
         # ---------- Statusleiste ----------
-        status_bar = ctk.CTkFrame(self.root, corner_radius=0)
-        status_bar.grid(row=2, column=0, sticky="ew")
+        status_bar = QFrame()
+        status_bar.setObjectName("statusBar")
+        status_layout = QHBoxLayout(status_bar)
+        status_layout.setContentsMargins(PAD, 7, PAD, 7)
+        self.status_label = QLabel(tr("Bereit"))
+        self.set_kind(self.status_label, 'accent')
+        status_layout.addWidget(self.status_label)
+        outer.addWidget(status_bar)
 
-        self.status_label = ctk.CTkLabel(status_bar, text=tr("Bereit"), anchor="w",
-                                         text_color=COLORS['accent'])
-        self.status_label.pack(fill="both", expand=True, padx=PAD, pady=6)
-
-        if not DND_AVAILABLE:
-            self.set_status(tr("Bereit — Tipp: 'pip install tkinterdnd2' aktiviert Drag & Drop"),
-                            'muted')
-        elif not core.PDF_AVAILABLE:
+        if not core.PDF_AVAILABLE:
             self.set_status(tr("Bereit — Tipp: 'pip install pymupdf' aktiviert PDF-Eingabe"),
                             'muted')
 
         # Initiale Format-Einstellung
         self.on_format_change()
 
-    def create_card(self, parent, title):
-        """Erstellt eine Card mit Titelzeile; gibt (Card, Content-Frame) zurück"""
-        card = ctk.CTkFrame(parent, corner_radius=12)
-        card.grid_columnconfigure(0, weight=1)
+    def create_card(self, title):
+        """Erstellt eine Card mit VERSALIEN-Titel; gibt (Card, Layout) zurück"""
+        card = QFrame()
+        card.setObjectName("card")
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(PAD, 12, PAD, 14)
+        layout.setSpacing(10)
 
-        ctk.CTkLabel(card, text=title, font=self.font_section, anchor="w").grid(
-            row=0, column=0, sticky="ew", padx=PAD, pady=(12, 6))
+        label = QLabel(title.upper())
+        label.setObjectName("sectionTitle")
+        label.setFont(self.font_section)
+        layout.addWidget(label)
 
-        content = ctk.CTkFrame(card, fg_color="transparent")
-        content.grid(row=1, column=0, sticky="nsew", padx=PAD, pady=(0, 14))
-        content.grid_columnconfigure(0, weight=1)
+        return card, layout
 
-        return card, content
+    # ---------- Theme und Status ----------
+
+    def set_kind(self, label, kind):
+        """Setzt die semantische Farbe eines Labels (QSS-Property 'kind')"""
+        if label.property("kind") != kind:
+            label.setProperty("kind", kind)
+            repolish(label)
 
     def set_status(self, message, kind='accent'):
         """Zeigt eine Statusmeldung farbcodiert in der Statusleiste an"""
-        self.status_label.configure(text=message, text_color=COLORS[kind])
+        self.status_label.setText(message)
+        self.set_kind(self.status_label, kind)
 
-    def on_appearance_change(self, choice):
-        ctk.set_appearance_mode(self.appearance_labels.get(choice, "system"))
+    def resolve_theme(self, mode):
+        """'system' über das Qt-ColorScheme auflösen"""
+        if mode in THEMES:
+            return THEMES[mode]
+        scheme = QGuiApplication.styleHints().colorScheme()
+        if scheme == Qt.ColorScheme.Light:
+            return THEMES['light']
+        return THEMES['dark']
+
+    def apply_theme(self, mode):
+        self.appearance_mode = mode
+        theme = self.resolve_theme(mode)
+        self._current_theme = theme
+        app = QApplication.instance()
+        app.setPalette(build_palette(theme))
+        app.setStyleSheet(build_stylesheet(theme))
+        self._update_logo(theme is THEMES['dark'])
+
+    def _update_logo(self, dark):
+        """Logo-Wortmarke passend zum Theme in den Header laden"""
+        logo = ASSETS / ('logo-dark.png' if dark else 'logo-light.png')
+        if not logo.exists():
+            return
+        dpr = self.devicePixelRatioF()
+        pixmap = QPixmap(str(logo)).scaledToHeight(
+            int(34 * dpr), Qt.TransformationMode.SmoothTransformation)
+        pixmap.setDevicePixelRatio(dpr)
+        self.logo_label.setPixmap(pixmap)
+
+    def on_appearance_change(self, mode):
+        self.apply_theme(mode)
+
+    def _on_system_scheme_changed(self, _scheme):
+        if self.appearance_mode == 'system':
+            self.apply_theme('system')
 
     # ---------- Einstellungen speichern/laden ----------
 
@@ -538,55 +950,54 @@ class PicConverterGUI:
             return
         try:
             mode = settings.get('appearance', 'system')
-            for label, value in self.appearance_labels.items():
-                if value == mode:
-                    self.appearance_switch.set(label)
-            ctk.set_appearance_mode(mode)
+            if mode in self.appearance_buttons:
+                self.appearance_buttons[mode].setChecked(True)
+                self.apply_theme(mode)
 
             fmt_label = settings.get('format')
             if fmt_label in SUPPORTED_FORMATS:
-                self.format_var.set(fmt_label)
+                self.format_menu.setCurrentText(fmt_label)
                 self.on_format_change()
             if 'quality' in settings:
-                self.quality_var.set(int(settings['quality']))
+                self.quality_slider.setValue(int(settings['quality']))
                 self.on_quality_change()
-            self.use_target_var.set(bool(settings.get('use_target', False)))
-            self.target_var.set(str(settings.get('target_kb', 500)))
-            self.aspect_ratio_var.set(bool(settings.get('keep_aspect', True)))
-            self.exif_strip_var.set(bool(settings.get('strip_exif', False)))
-            self.overwrite_var.set(bool(settings.get('overwrite', False)))
-            self.watermark_var.set(bool(settings.get('watermark_on', False)))
-            self.watermark_text_var.set(settings.get('watermark_text', ''))
+            self.target_check.setChecked(bool(settings.get('use_target', False)))
+            self.target_entry.setText(str(settings.get('target_kb', 500)))
+            self.aspect_check.setChecked(bool(settings.get('keep_aspect', True)))
+            self.exif_strip_check.setChecked(bool(settings.get('strip_exif', False)))
+            self.overwrite_check.setChecked(bool(settings.get('overwrite', False)))
+            self.watermark_check.setChecked(bool(settings.get('watermark_on', False)))
+            self.watermark_text_entry.setText(settings.get('watermark_text', ''))
             pos = settings.get('watermark_pos', 'unten-rechts')
             if pos in core.WATERMARK_POSITIONS:
-                self.watermark_pos_var.set(tr(pos))
-            self.watermark_opacity_var.set(str(settings.get('watermark_opacity', 50)))
+                self.watermark_pos_menu.setCurrentText(tr(pos))
+            self.watermark_opacity_entry.setText(
+                str(settings.get('watermark_opacity', 50)))
             self.on_target_toggle()
         except Exception:
             pass  # defekte Einstellungsdatei ignorieren
 
-    def on_close(self):
+    def closeEvent(self, event):
         """Speichert die Einstellungen und schließt das Fenster"""
         try:
-            mode_label = self.appearance_switch.get()
             core.save_gui_settings({
-                'appearance': self.appearance_labels.get(mode_label, 'system'),
-                'format': self.format_var.get(),
-                'quality': int(self.quality_var.get()),
-                'use_target': self.use_target_var.get(),
-                'target_kb': self.target_var.get(),
-                'keep_aspect': self.aspect_ratio_var.get(),
-                'strip_exif': self.exif_strip_var.get(),
-                'overwrite': self.overwrite_var.get(),
-                'watermark_on': self.watermark_var.get(),
-                'watermark_text': self.watermark_text_var.get(),
+                'appearance': self.appearance_mode,
+                'format': self.format_menu.currentText(),
+                'quality': int(self.quality_slider.value()),
+                'use_target': self.target_check.isChecked(),
+                'target_kb': self.target_entry.text(),
+                'keep_aspect': self.aspect_check.isChecked(),
+                'strip_exif': self.exif_strip_check.isChecked(),
+                'overwrite': self.overwrite_check.isChecked(),
+                'watermark_on': self.watermark_check.isChecked(),
+                'watermark_text': self.watermark_text_entry.text(),
                 'watermark_pos': self.watermark_pos_labels.get(
-                    self.watermark_pos_var.get(), 'unten-rechts'),
-                'watermark_opacity': self.watermark_opacity_var.get(),
+                    self.watermark_pos_menu.currentText(), 'unten-rechts'),
+                'watermark_opacity': self.watermark_opacity_entry.text(),
             })
         except Exception:
             pass
-        self.root.destroy()
+        super().closeEvent(event)
 
     # ---------- Presets ----------
 
@@ -599,76 +1010,78 @@ class PicConverterGUI:
         preset = core.load_presets().get(choice, {})
         fmt_label = LABEL_BY_EXT.get(str(preset.get('format', '')).lower())
         if fmt_label:
-            self.format_var.set(fmt_label)
+            self.format_menu.setCurrentText(fmt_label)
             self.on_format_change()
         if preset.get('target_kb'):
-            self.use_target_var.set(True)
-            self.target_var.set(str(preset['target_kb']))
+            self.target_check.setChecked(True)
+            self.target_entry.setText(str(preset['target_kb']))
         else:
-            self.use_target_var.set(False)
+            self.target_check.setChecked(False)
             if preset.get('quality') is not None:
-                self.quality_var.set(int(preset['quality']))
+                self.quality_slider.setValue(int(preset['quality']))
                 self.on_quality_change()
         if preset.get('width'):
-            self.width_var.set(str(preset['width']))
-            self.height_var.set('')
+            self.width_entry.setText(str(preset['width']))
+            self.height_entry.setText('')
         if preset.get('height'):
-            self.height_var.set(str(preset['height']))
-        self.exif_strip_var.set(bool(preset.get('strip_exif', False)))
+            self.height_entry.setText(str(preset['height']))
+        self.exif_strip_check.setChecked(bool(preset.get('strip_exif', False)))
         self.on_target_toggle()
-        self.set_status(tr("✓ Preset '{name}' angewendet").format(name=choice), 'success')
+        self.set_status(tr("✓ Preset '{name}' angewendet").format(name=choice),
+                        'success')
 
     def save_preset(self):
-        dialog = ctk.CTkInputDialog(text=tr("Name für das Preset:"),
-                                    title=tr("Preset speichern"))
-        name = (dialog.get_input() or '').strip()
-        if not name:
+        name, ok = QInputDialog.getText(self, tr("Preset speichern"),
+                                        tr("Name für das Preset:"))
+        name = (name or '').strip()
+        if not ok or not name:
             return
         width, height = self.parse_resolution()
         core.save_user_preset(name, {
-            'format': EXT_MAP[self.format_var.get()].lstrip('.'),
-            'quality': (int(self.quality_var.get())
-                        if not self.use_target_var.get() else None),
+            'format': EXT_MAP[self.format_menu.currentText()].lstrip('.'),
+            'quality': (int(self.quality_slider.value())
+                        if not self.target_check.isChecked() else None),
             'target_kb': self.parse_target_kb(),
             'width': width,
             'height': height,
-            'strip_exif': self.exif_strip_var.get(),
+            'strip_exif': self.exif_strip_check.isChecked(),
         })
-        self.preset_menu.configure(values=self._preset_names())
-        self.preset_var.set(name)
-        self.set_status(tr("✓ Preset '{name}' gespeichert").format(name=name), 'success')
+        self.preset_menu.clear()
+        self.preset_menu.addItems(self._preset_names())
+        self.preset_menu.setCurrentText(name)
+        self.set_status(tr("✓ Preset '{name}' gespeichert").format(name=name),
+                        'success')
 
     # ---------- Drag & Drop ----------
 
-    def setup_dnd(self):
-        self.root.drop_target_register(DND_FILES)
-        self.root.dnd_bind('<<Drop>>', self.on_drop)
-        self.root.dnd_bind('<<DropEnter>>', lambda e: self.drop_zone.configure(
-            border_color=COLORS['accent']))
-        self.root.dnd_bind('<<DropLeave>>', lambda e: self.drop_zone.configure(
-            border_color=COLORS['border']))
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+            self.drop_zone.set_drag_over(True)
 
-    def on_drop(self, event):
-        self.drop_zone.configure(border_color=COLORS['border'])
-        try:
-            paths = self.root.tk.splitlist(event.data)
-        except tk.TclError:
-            paths = [event.data]
-        self.add_files([Path(p) for p in paths])
+    def dragLeaveEvent(self, event):
+        self.drop_zone.set_drag_over(False)
+
+    def dropEvent(self, event):
+        self.drop_zone.set_drag_over(False)
+        paths = [Path(url.toLocalFile()) for url in event.mimeData().urls()
+                 if url.isLocalFile()]
+        if paths:
+            self.add_files(paths)
 
     # ---------- Dateiauswahl und Laden ----------
 
     def select_files(self):
         image_exts = sorted(core.INPUT_EXTENSIONS - {'pdf'})
-        all_patterns = ' '.join(f'*.{ext}' for ext in image_exts) + ' *.pdf'
-        filetypes = [
-            (tr("Alle unterstützten Dateien"), all_patterns),
-            (tr("Alle Bilder"), ' '.join(f'*.{ext}' for ext in image_exts)),
-            ("PDF", "*.pdf"),
-            (tr("Alle Dateien"), "*.*")
-        ]
-        filenames = filedialog.askopenfilenames(
-            title=tr("Bilder oder PDFs auswählen"), filetypes=filetypes)
+        image_patterns = ' '.join(f'*.{ext}' for ext in image_exts)
+        filters = ';;'.join([
+            tr("Alle unterstützten Dateien") + f" ({image_patterns} *.pdf)",
+            tr("Alle Bilder") + f" ({image_patterns})",
+            "PDF (*.pdf)",
+            tr("Alle Dateien") + " (*)",
+        ])
+        filenames, _ = QFileDialog.getOpenFileNames(
+            self, tr("Bilder oder PDFs auswählen"), '', filters)
         if filenames:
             self.add_files([Path(f) for f in filenames])
 
@@ -715,19 +1128,17 @@ class PicConverterGUI:
         self.output_dir = None
         self.thumbnails = {}
         self.refresh_file_list()
-        self.page_row.grid_remove()
-        self.preview_label.configure(image=None, text=tr("Kein Bild geladen"))
-        self.info_text.configure(state="normal")
-        self.info_text.delete("1.0", "end")
-        self.info_text.configure(state="disabled")
-        self.input_label.configure(text=tr("Keine Dateien ausgewählt"),
-                                   text_color=COLORS['muted'])
-        self.output_label.configure(text=tr("Automatisch generiert"),
-                                    text_color=COLORS['muted'])
-        self.convert_button.configure(state="disabled")
-        self.progress_bar.set(0)
-        self.result_label.grid_remove()
-        self.open_folder_button.grid_remove()
+        self.page_row.hide()
+        self.preview_label.clear_image(tr("Kein Bild geladen"))
+        self.info_label.setText("")
+        self.input_label.setText(tr("Keine Dateien ausgewählt"))
+        self.set_kind(self.input_label, 'muted')
+        self.output_label.setText(tr("Automatisch generiert"))
+        self.set_kind(self.output_label, 'muted')
+        self.convert_button.setEnabled(False)
+        self.progress_bar.setValue(0)
+        self.result_label.hide()
+        self.open_folder_button.hide()
         self.set_status(tr("Liste geleert"), 'muted')
 
     def remove_index(self, index):
@@ -756,46 +1167,75 @@ class PicConverterGUI:
         if core.is_pdf(path) or len(self.input_paths) > MAX_THUMBNAILS:
             return None
         try:
+            dpr = self.devicePixelRatioF()
             img = Image.open(path)
-            img.thumbnail((22, 22), Image.Resampling.BILINEAR)
-            thumb = ctk.CTkImage(light_image=img, dark_image=img, size=img.size)
+            img.thumbnail((int(22 * dpr), int(22 * dpr)),
+                          Image.Resampling.BILINEAR)
+            thumb = QPixmap.fromImage(pil_to_qimage(img))
+            thumb.setDevicePixelRatio(dpr)
         except Exception:
             thumb = None
         self.thumbnails[path] = thumb
         return thumb
 
+    def _file_row_widget(self, index, path):
+        """Baut eine Zeile der Dateiliste: Thumbnail/Chip, Name, Entfernen"""
+        row = QWidget()
+        layout = QHBoxLayout(row)
+        layout.setContentsMargins(8, 2, 4, 2)
+        layout.setSpacing(8)
+
+        if core.is_pdf(path):
+            chip = QLabel("PDF")
+            chip.setObjectName("chip")
+            chip.setFont(self.font_small)
+            layout.addWidget(chip)
+        else:
+            thumb_label = QLabel()
+            thumb_label.setFixedSize(22, 22)
+            thumb = self._thumbnail_for(path)
+            if thumb:
+                thumb_label.setPixmap(thumb)
+                thumb_label.setScaledContents(False)
+                thumb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(thumb_label)
+
+        name_label = QLabel(path.name)
+        layout.addWidget(name_label, 1)
+
+        remove_btn = QPushButton("✕")
+        remove_btn.setObjectName("toolBtn")
+        remove_btn.setFixedWidth(28)
+        remove_btn.clicked.connect(lambda: self.remove_index(index))
+        layout.addWidget(remove_btn)
+        return row
+
     def refresh_file_list(self):
         """Baut die Dateiliste neu auf (sichtbar ab zwei Dateien)"""
-        for widget in self.file_list.winfo_children():
-            widget.destroy()
+        self.file_list.blockSignals(True)
+        self.file_list.clear()
 
         if len(self.input_paths) < 2:
-            self.file_list.grid_remove()
+            self.file_list.hide()
+            self.file_list.blockSignals(False)
             return
 
-        self.file_list.grid()
-        self.file_list.grid_columnconfigure(0, weight=1)
+        self.file_list.show()
         for i, path in enumerate(self.input_paths):
-            selected = (i == self.selected_index)
-            name = f"📄 {path.name}" if core.is_pdf(path) else path.name
-            btn = ctk.CTkButton(
-                self.file_list, text=name, anchor="w", height=26,
-                image=self._thumbnail_for(path), compound="left",
-                fg_color=COLORS['accent'] if selected else "transparent",
-                text_color=("white", "gray10") if selected else ("gray10", "gray90"),
-                hover_color=COLORS['border'],
-                command=lambda i=i: self.select_index(i))
-            btn.grid(row=i, column=0, sticky="ew", pady=1)
-            ctk.CTkButton(
-                self.file_list, text="✕", width=26, height=26,
-                fg_color="transparent", hover_color=COLORS['border'],
-                text_color=COLORS['muted'],
-                command=lambda i=i: self.remove_index(i)).grid(
-                row=i, column=1, padx=(4, 0), pady=1)
+            item = QListWidgetItem()
+            widget = self._file_row_widget(i, path)
+            item.setSizeHint(QSize(widget.sizeHint().width(),
+                                   max(28, widget.sizeHint().height())))
+            self.file_list.addItem(item)
+            self.file_list.setItemWidget(item, widget)
+        if self.selected_index is not None:
+            self.file_list.setCurrentRow(self.selected_index)
+        self.file_list.blockSignals(False)
 
-    def select_index(self, index):
-        self.selected_index = index
-        self.refresh_file_list()
+    def on_row_changed(self, row):
+        if row < 0 or row == self.selected_index:
+            return
+        self.selected_index = row
         self.load_selected()
 
     @property
@@ -812,14 +1252,14 @@ class PicConverterGUI:
         try:
             if core.is_pdf(path):
                 self.pdf_page_count = core.pdf_page_count(path)
-                self.page_var.set("1")
-                self.page_count_label.configure(
-                    text=tr("von {n}").format(n=self.pdf_page_count))
-                self.page_row.grid()
+                self.page_entry.setText("1")
+                self.page_count_label.setText(
+                    tr("von {n}").format(n=self.pdf_page_count))
+                self.page_row.show()
                 self.image = core.load_image(path, 1)
             else:
                 self.pdf_page_count = 0
-                self.page_row.grid_remove()
+                self.page_row.hide()
                 self.image = core.load_image(path)
 
             self.refresh_display()
@@ -828,28 +1268,28 @@ class PicConverterGUI:
                 short_name = path.name
                 if len(short_name) > 45:
                     short_name = short_name[:42] + "..."
-                self.input_label.configure(text=f"✓ {short_name}",
-                                           text_color=COLORS['success'])
+                self.input_label.setText(f"✓ {short_name}")
             else:
-                self.input_label.configure(
-                    text=tr("✓ {n} Dateien in der Warteschlange")
-                    .format(n=len(self.input_paths)),
-                    text_color=COLORS['success'])
+                self.input_label.setText(
+                    tr("✓ {n} Dateien in der Warteschlange")
+                    .format(n=len(self.input_paths)))
+            self.set_kind(self.input_label, 'success')
 
-            self.convert_button.configure(state="normal")
-            self.progress_bar.set(0)
+            self.convert_button.setEnabled(True)
+            self.progress_bar.setValue(0)
             self.update_output_path()
             self.set_status(tr("✓ Datei erfolgreich geladen"), 'success')
 
         except Exception as e:
-            self.set_status(tr("✗ Fehler beim Laden: {error}").format(error=e), 'error')
+            self.set_status(tr("✗ Fehler beim Laden: {error}").format(error=e),
+                            'error')
 
     def refresh_display(self):
         """Aktualisiert Bildinformationen, Vorschau und Auflösungsfelder"""
         path = self.selected_path
         if self.pdf_page_count:
             format_text = tr("PDF · Seite {page} von {count}").format(
-                page=self.page_var.get(), count=self.pdf_page_count)
+                page=self.page_entry.text(), count=self.pdf_page_count)
         else:
             format_text = self.image.format or Image.open(path).format
             if core.is_animated(self.image):
@@ -867,52 +1307,47 @@ class PicConverterGUI:
             w=self.image.size[0], h=self.image.size[1]) + "\n"
         info += tr("Format:     {format}").format(format=format_text) + "\n"
         info += tr("EXIF:       {exif}").format(exif=exif_text)
-
-        self.info_text.configure(state="normal")
-        self.info_text.delete("1.0", "end")
-        self.info_text.insert("1.0", info)
-        self.info_text.configure(state="disabled")
+        self.info_label.setText(info)
 
         # Vorschau
         preview_img = self.image.copy() if not core.is_animated(self.image) \
             else self.image.convert('RGB')
-        preview_img.thumbnail((460, 300), Image.Resampling.LANCZOS)
-        self.preview_image = ctk.CTkImage(light_image=preview_img,
-                                          dark_image=preview_img,
-                                          size=preview_img.size)
-        self.preview_label.configure(image=self.preview_image, text="")
+        preview_img.thumbnail((1400, 1000), Image.Resampling.LANCZOS)
+        self.preview_label.set_image(preview_img)
 
         # Auflösungsfelder vorbefüllen; die Werte gelten als "unverändert",
         # bis der User sie anfasst (wichtig für Batch-Konvertierung)
-        self.width_var.set(str(self.image.size[0]))
-        self.height_var.set(str(self.image.size[1]))
-        self.prefilled_size = (self.width_var.get(), self.height_var.get())
+        self.width_entry.setText(str(self.image.size[0]))
+        self.height_entry.setText(str(self.image.size[1]))
+        self.prefilled_size = (self.width_entry.text(), self.height_entry.text())
 
     # ---------- PDF-Seitennavigation ----------
 
     def step_page(self, delta):
         try:
-            page = int(self.page_var.get()) + delta
+            page = int(self.page_entry.text()) + delta
         except ValueError:
             page = 1
-        self.page_var.set(str(page))
+        self.page_entry.setText(str(page))
         self.on_page_change()
 
-    def on_page_change(self, event=None):
+    def on_page_change(self):
         """Rendert die gewählte PDF-Seite neu (mit Bereichsprüfung)"""
         if not self.pdf_page_count:
             return
         try:
-            page = int(self.page_var.get())
+            page = int(self.page_entry.text())
         except ValueError:
             page = 1
         page = max(1, min(page, self.pdf_page_count))
-        self.page_var.set(str(page))
+        if self.page_entry.text() != str(page):
+            self.page_entry.setText(str(page))
         try:
             self.image = core.load_image(self.selected_path, page)
             self.refresh_display()
             self.update_output_path()
-            self.set_status(tr("✓ Seite {page} geladen").format(page=page), 'success')
+            self.set_status(tr("✓ Seite {page} geladen").format(page=page),
+                            'success')
         except Exception as e:
             self.set_status(tr("✗ Fehler beim Laden der Seite: {error}")
                             .format(error=e), 'error')
@@ -920,59 +1355,61 @@ class PicConverterGUI:
     # ---------- Einstellungen ----------
 
     def on_format_change(self, choice=None):
-        output_format = SUPPORTED_FORMATS[self.format_var.get()]
+        output_format = SUPPORTED_FORMATS[self.format_menu.currentText()]
 
         if output_format in core.QUALITY_SETTINGS:
             settings = core.QUALITY_SETTINGS[output_format]
-            self.quality_slider.configure(from_=settings['min'], to=settings['max'],
-                                          number_of_steps=settings['max'] - settings['min'],
-                                          state="normal")
-            self.quality_var.set(settings['default'])
-            self.quality_label.configure(text=tr(settings['name']))
+            self.quality_slider.blockSignals(True)
+            self.quality_slider.setRange(settings['min'], settings['max'])
+            self.quality_slider.setValue(settings['default'])
+            self.quality_slider.blockSignals(False)
+            self.quality_slider.setEnabled(True)
+            self.quality_label.setText(tr(settings['name']))
             self.on_quality_change()
         else:
-            self.quality_slider.configure(state="disabled")
-            self.quality_label.configure(
-                text=tr("Qualität (für dieses Format nicht verfügbar)"))
-            self.quality_value_label.configure(text="--")
+            self.quality_slider.setEnabled(False)
+            self.quality_label.setText(
+                tr("Qualität (für dieses Format nicht verfügbar)"))
+            self.quality_value_label.setText("--")
 
         # Zielgröße nur für JPEG/WebP
         if output_format in core.TARGET_SIZE_FORMATS:
-            self.target_check.configure(state="normal")
-            self.target_entry.configure(state="normal")
+            self.target_check.setEnabled(True)
+            self.target_entry.setEnabled(True)
         else:
-            self.use_target_var.set(False)
-            self.target_check.configure(state="disabled")
-            self.target_entry.configure(state="disabled")
+            self.target_check.setChecked(False)
+            self.target_check.setEnabled(False)
+            self.target_entry.setEnabled(False)
 
         # Zusammenfassen nur bei Zielformat PDF
         if output_format == 'PDF':
-            self.merge_check.grid()
+            self.merge_check.show()
         else:
-            self.merge_var.set(False)
-            self.merge_check.grid_remove()
+            self.merge_check.setChecked(False)
+            self.merge_check.hide()
 
         self.on_target_toggle()
         self.update_output_path()
 
     def on_quality_change(self, value=None):
-        self.quality_value_label.configure(text=str(int(self.quality_var.get())))
+        self.quality_value_label.setText(str(self.quality_slider.value()))
 
     def on_target_toggle(self):
         """Bei aktiver Zielgröße übernimmt die Qualitätssuche den Slider"""
-        output_format = SUPPORTED_FORMATS[self.format_var.get()]
-        if self.use_target_var.get() and output_format in core.TARGET_SIZE_FORMATS:
-            self.quality_slider.configure(state="disabled")
-            self.quality_value_label.configure(text=tr("auto"))
+        output_format = SUPPORTED_FORMATS[self.format_menu.currentText()]
+        if self.target_check.isChecked() and \
+                output_format in core.TARGET_SIZE_FORMATS:
+            self.quality_slider.setEnabled(False)
+            self.quality_value_label.setText(tr("auto"))
         elif output_format in core.QUALITY_SETTINGS:
-            self.quality_slider.configure(state="normal")
+            self.quality_slider.setEnabled(True)
             self.on_quality_change()
 
     def parse_resolution(self):
         """Liest die Zielauflösung; unveränderte oder leere Felder bedeuten
         'Originalgröße beibehalten' (None, None)"""
-        width_text = self.width_var.get().strip()
-        height_text = self.height_var.get().strip()
+        width_text = self.width_entry.text().strip()
+        height_text = self.height_entry.text().strip()
         if (width_text, height_text) == self.prefilled_size:
             return None, None
         if not width_text and not height_text:
@@ -987,10 +1424,10 @@ class PicConverterGUI:
         return width, height
 
     def parse_target_kb(self):
-        if not self.use_target_var.get():
+        if not self.target_check.isChecked():
             return None
         try:
-            target = int(self.target_var.get())
+            target = int(self.target_entry.text())
             if target < 1:
                 raise ValueError
             return target
@@ -1001,21 +1438,21 @@ class PicConverterGUI:
 
     def build_watermark(self):
         """Wasserzeichen-Einstellungen als Dict (oder None)"""
-        if not self.watermark_var.get():
+        if not self.watermark_check.isChecked():
             return None
-        text = self.watermark_text_var.get().strip()
+        text = self.watermark_text_entry.text().strip()
         if not text:
             self.set_status(tr("Wasserzeichen aktiviert, aber kein Text angegeben"),
                             'warning')
             return None
         try:
-            opacity = max(0, min(100, int(self.watermark_opacity_var.get())))
+            opacity = max(0, min(100, int(self.watermark_opacity_entry.text())))
         except ValueError:
             opacity = 50
         return {
             'text': text,
             'position': self.watermark_pos_labels.get(
-                self.watermark_pos_var.get(), 'unten-rechts'),
+                self.watermark_pos_menu.currentText(), 'unten-rechts'),
             'opacity': opacity,
         }
 
@@ -1044,65 +1481,67 @@ class PicConverterGUI:
             self.set_status(tr("Bitte zuerst eine Datei laden"), 'warning')
             return
 
-        editor = ctk.CTkToplevel(self.root)
-        editor.title(tr("EXIF-Metadaten"))
-        editor.geometry("560x640")
-        editor.transient(self.root)
-        editor.grid_columnconfigure(0, weight=1)
+        editor = QDialog(self)
+        editor.setWindowTitle(tr("EXIF-Metadaten"))
+        editor.resize(560, 640)
+        layout = QVBoxLayout(editor)
+        layout.setContentsMargins(PAD, PAD, PAD, PAD)
+        layout.setSpacing(10)
 
-        ctk.CTkLabel(editor, text=tr("Bearbeitbare Felder"), font=self.font_section,
-                     anchor="w").grid(row=0, column=0, sticky="ew",
-                                      padx=PAD, pady=(PAD, 6))
-
-        fields_frame = ctk.CTkFrame(editor, fg_color="transparent")
-        fields_frame.grid(row=1, column=0, sticky="ew", padx=PAD)
-        fields_frame.grid_columnconfigure(1, weight=1)
+        fields_title = QLabel(tr("Bearbeitbare Felder").upper())
+        fields_title.setObjectName("sectionTitle")
+        fields_title.setFont(self.font_section)
+        layout.addWidget(fields_title)
 
         current_exif = self.image.getexif()
         entries = {}
         originals = {}
-        for row, (name, (tag, label)) in enumerate(core.EXIF_EDITABLE_TAGS.items()):
-            ctk.CTkLabel(fields_frame, text=tr(label), anchor="w").grid(
-                row=row, column=0, sticky="w", pady=3, padx=(0, 10))
-            var = tk.StringVar()
+        for name, (tag, label) in core.EXIF_EDITABLE_TAGS.items():
+            field_row = QHBoxLayout()
+            field_row.setSpacing(10)
+            field_label = QLabel(tr(label))
+            field_label.setMinimumWidth(190)
+            field_row.addWidget(field_label)
+            entry = QLineEdit()
             original = str(current_exif.get(tag, '')).strip()
             # Bereits vorgemerkte Änderungen haben Vorrang vor den Dateiwerten
-            var.set(self.exif_overrides.get(name, original))
+            entry.setText(self.exif_overrides.get(name, original))
             originals[name] = original
-            ctk.CTkEntry(fields_frame, textvariable=var).grid(
-                row=row, column=1, sticky="ew", pady=3)
-            entries[name] = var
+            field_row.addWidget(entry, 1)
+            layout.addLayout(field_row)
+            entries[name] = entry
 
-        ctk.CTkLabel(editor, text=tr("Alle Metadaten der ausgewählten Datei"),
-                     font=self.font_section, anchor="w").grid(
-            row=2, column=0, sticky="sew", padx=PAD, pady=(12, 6))
+        viewer_title = QLabel(tr("Alle Metadaten der ausgewählten Datei").upper())
+        viewer_title.setObjectName("sectionTitle")
+        viewer_title.setFont(self.font_section)
+        layout.addSpacing(4)
+        layout.addWidget(viewer_title)
 
-        viewer = ctk.CTkTextbox(editor, font=self.font_mono,
-                                fg_color=COLORS['panel'], corner_radius=8)
-        viewer.grid(row=3, column=0, sticky="nsew", padx=PAD)
-        editor.grid_rowconfigure(3, weight=1)
-
+        viewer = QPlainTextEdit()
+        viewer.setObjectName("exifViewer")
+        viewer.setFont(self.font_mono)
+        viewer.setReadOnly(True)
         all_tags = core.read_exif(self.image)
         if all_tags:
             width = max(len(name) for name, _ in all_tags)
-            viewer.insert("1.0", "\n".join(
+            viewer.setPlainText("\n".join(
                 f"{name:<{width}}  {value}" for name, value in all_tags))
         else:
-            viewer.insert("1.0", tr("Keine EXIF-Daten vorhanden."))
-        viewer.configure(state="disabled")
+            viewer.setPlainText(tr("Keine EXIF-Daten vorhanden."))
+        layout.addWidget(viewer, 1)
 
-        button_row = ctk.CTkFrame(editor, fg_color="transparent")
-        button_row.grid(row=4, column=0, sticky="ew", padx=PAD, pady=PAD)
-        button_row.grid_columnconfigure(0, weight=1)
+        button_row = QHBoxLayout()
+        button_row.addStretch(1)
+        layout.addLayout(button_row)
 
         def apply():
             self.exif_overrides = {
-                name: var.get().strip()
-                for name, var in entries.items()
-                if var.get().strip() != originals[name]
+                name: entry.text().strip()
+                for name, entry in entries.items()
+                if entry.text().strip() != originals[name]
             }
             self.update_exif_hint()
-            editor.destroy()
+            editor.accept()
             if self.exif_overrides:
                 self.set_status(
                     tr("✓ {n} EXIF-Feld(er) werden beim Konvertieren angepasst")
@@ -1110,23 +1549,25 @@ class PicConverterGUI:
             else:
                 self.set_status(tr("EXIF-Änderungen zurückgesetzt"), 'muted')
 
-        ctk.CTkButton(button_row, text=tr("Abbrechen"), width=110,
-                      fg_color="transparent", border_width=1,
-                      border_color=COLORS['border'], hover_color=COLORS['panel'],
-                      text_color=("gray10", "gray90"),
-                      command=editor.destroy).grid(row=0, column=1, padx=(0, 8))
-        ctk.CTkButton(button_row, text=tr("Übernehmen"), width=110,
-                      command=apply).grid(row=0, column=2)
+        cancel_btn = QPushButton(tr("Abbrechen"))
+        cancel_btn.clicked.connect(editor.reject)
+        button_row.addWidget(cancel_btn)
+        apply_btn = QPushButton(tr("Übernehmen"))
+        apply_btn.setObjectName("primary")
+        apply_btn.clicked.connect(apply)
+        button_row.addWidget(apply_btn)
+
+        editor.exec()
 
     def update_exif_hint(self):
         if self.exif_overrides:
             fields = ', '.join(tr(core.EXIF_EDITABLE_TAGS[n][1]).split(' (')[0]
                                for n in self.exif_overrides)
-            self.exif_hint_label.configure(
-                text=tr("✎ Wird angepasst: {fields}").format(fields=fields))
-            self.exif_hint_label.grid()
+            self.exif_hint_label.setText(
+                tr("Wird angepasst: {fields}").format(fields=fields))
+            self.exif_hint_label.show()
         else:
-            self.exif_hint_label.grid_remove()
+            self.exif_hint_label.hide()
 
     # ---------- Ausgabe ----------
 
@@ -1141,11 +1582,11 @@ class PicConverterGUI:
         for path in self.input_paths:
             if not core.is_pdf(path):
                 jobs.append((path, None))
-            elif self.all_pages_var.get():
+            elif self.all_pages_check.isChecked():
                 jobs.extend((path, p)
                             for p in range(1, core.pdf_page_count(path) + 1))
             elif path == self.selected_path:
-                jobs.append((path, int(self.page_var.get())))
+                jobs.append((path, int(self.page_entry.text())))
             else:
                 jobs.append((path, 1))
         return jobs
@@ -1153,47 +1594,49 @@ class PicConverterGUI:
     def update_output_path(self):
         if not self.input_paths:
             return
-        ext = EXT_MAP.get(self.format_var.get(), '.jpg')
+        ext = EXT_MAP.get(self.format_menu.currentText(), '.jpg')
         first = self.input_paths[0]
 
-        if self.merge_var.get() and SUPPORTED_FORMATS[self.format_var.get()] == 'PDF':
+        if self.merge_check.isChecked() and \
+                SUPPORTED_FORMATS[self.format_menu.currentText()] == 'PDF':
             name = (self.output_file.name if self.output_file
                     else f"{first.stem}_gesamt.pdf")
-            self.output_label.configure(text=name, text_color=COLORS['accent'])
+            self.output_label.setText(name)
         elif len(self.input_paths) == 1 and not (self.pdf_page_count
-                                                 and self.all_pages_var.get()):
+                                                 and self.all_pages_check.isChecked()):
             if self.output_file:
                 name = self.output_file.name
             else:
-                page = int(self.page_var.get()) if self.pdf_page_count else None
+                page = int(self.page_entry.text()) if self.pdf_page_count else None
                 name = core.output_stem(first, page) + ext
-            self.output_label.configure(text=name, text_color=COLORS['accent'])
+            self.output_label.setText(name)
         else:
             target = self.output_dir.name if self.output_dir else tr("je Eingabeordner")
-            self.output_label.configure(
-                text=tr("Mehrere Dateien → {target}").format(target=target),
-                text_color=COLORS['accent'])
+            self.output_label.setText(
+                tr("Mehrere Dateien → {target}").format(target=target))
+        self.set_kind(self.output_label, 'accent')
 
     def select_output(self):
         if not self.input_paths:
             self.set_status(tr("Bitte zuerst Dateien auswählen"), 'warning')
             return
 
-        merge = self.merge_var.get() and \
-            SUPPORTED_FORMATS[self.format_var.get()] == 'PDF'
+        merge = self.merge_check.isChecked() and \
+            SUPPORTED_FORMATS[self.format_menu.currentText()] == 'PDF'
         single = len(self.input_paths) == 1 and not (self.pdf_page_count
-                                                     and self.all_pages_var.get())
+                                                     and self.all_pages_check.isChecked())
 
         if merge or single:
-            ext = '.pdf' if merge else EXT_MAP.get(self.format_var.get(), '.jpg')
-            filename = filedialog.asksaveasfilename(
-                title=tr("Ausgabedatei speichern"), defaultextension=ext,
-                filetypes=[(self.format_var.get(), f"*{ext}"),
-                           (tr("Alle Dateien"), "*.*")])
+            ext = '.pdf' if merge else EXT_MAP.get(self.format_menu.currentText(), '.jpg')
+            fmt_filter = f"{self.format_menu.currentText()} (*{ext});;" + \
+                tr("Alle Dateien") + " (*)"
+            filename, _ = QFileDialog.getSaveFileName(
+                self, tr("Ausgabedatei speichern"), '', fmt_filter)
             if filename:
                 self.output_file = Path(filename)
         else:
-            dirname = filedialog.askdirectory(title=tr("Ausgabeordner wählen"))
+            dirname = QFileDialog.getExistingDirectory(
+                self, tr("Ausgabeordner wählen"))
             if dirname:
                 self.output_dir = Path(dirname)
 
@@ -1207,44 +1650,47 @@ class PicConverterGUI:
             return
 
         try:
-            output_format = SUPPORTED_FORMATS[self.format_var.get()]
-            exif_mode = 'strip' if self.exif_strip_var.get() else 'keep'
+            output_format = SUPPORTED_FORMATS[self.format_menu.currentText()]
+            exif_mode = 'strip' if self.exif_strip_check.isChecked() else 'keep'
             watermark = self.build_watermark()
             width, height = self.parse_resolution()
             width, height = self.resolution_for(self.image, width, height,
-                                                self.aspect_ratio_var.get())
+                                                self.aspect_check.isChecked())
 
             target_kb = self.parse_target_kb()
             if target_kb and output_format in core.TARGET_SIZE_FORMATS:
                 quality, estimated = core.quality_for_target(
                     self.image, output_format, target_kb, width, height,
                     exif_mode, self.exif_overrides, watermark)
-                self.estimate_label.configure(
-                    text=tr("Geschätzt: {size:.2f} MB (Qualität {q})")
+                self.estimate_label.setText(
+                    tr("Geschätzt: {size:.2f} MB (Qualität {q})")
                     .format(size=estimated, q=quality))
-                self.set_status(tr("📉 Zielgröße {kb} KB → Qualität {q}")
+                self.set_kind(self.estimate_label, 'accent')
+                self.set_status(tr("Zielgröße {kb} KB → Qualität {q}")
                                 .format(kb=target_kb, q=quality), 'success')
                 return
 
-            quality = (int(self.quality_var.get())
+            quality = (int(self.quality_slider.value())
                        if output_format in core.QUALITY_SETTINGS else None)
             estimated = core.estimate_size(self.image, output_format, quality,
                                            width, height, exif_mode,
                                            self.exif_overrides, watermark)
             original = self.selected_path.stat().st_size / (1024 * 1024)
-            self.estimate_label.configure(
-                text=tr("Geschätzt: {size:.2f} MB (Original: {orig:.2f} MB)")
+            self.estimate_label.setText(
+                tr("Geschätzt: {size:.2f} MB (Original: {orig:.2f} MB)")
                 .format(size=estimated, orig=original))
+            self.set_kind(self.estimate_label, 'accent')
             if original > 0:
                 compression = (1 - estimated / original) * 100
                 if compression > 0:
-                    self.set_status(tr("📉 Schätzung: -{value:.1f}% kleiner")
+                    self.set_status(tr("Schätzung: -{value:.1f}% kleiner")
                                     .format(value=compression), 'success')
                 else:
-                    self.set_status(tr("📈 Schätzung: +{value:.1f}% größer")
+                    self.set_status(tr("Schätzung: +{value:.1f}% größer")
                                     .format(value=abs(compression)), 'warning')
         except Exception as e:
-            self.estimate_label.configure(text=tr("Konnte Größe nicht schätzen"))
+            self.estimate_label.setText(tr("Konnte Größe nicht schätzen"))
+            self.set_kind(self.estimate_label, 'muted')
             self.set_status(tr("✗ Fehler bei Größenberechnung: {error}")
                             .format(error=e), 'error')
 
@@ -1256,9 +1702,9 @@ class PicConverterGUI:
             return
 
         # Alle Parameter im GUI-Thread einsammeln -- der Worker-Thread
-        # darf keine Tkinter-Variablen anfassen
-        output_format = SUPPORTED_FORMATS[self.format_var.get()]
-        extension = EXT_MAP[self.format_var.get()].lstrip('.')
+        # darf keine Qt-Widgets anfassen
+        output_format = SUPPORTED_FORMATS[self.format_menu.currentText()]
+        extension = EXT_MAP[self.format_menu.currentText()].lstrip('.')
 
         try:
             jobs = self.build_jobs()
@@ -1269,28 +1715,28 @@ class PicConverterGUI:
         settings = {
             'format': output_format,
             'extension': extension,
-            'quality': (int(self.quality_var.get())
+            'quality': (int(self.quality_slider.value())
                         if output_format in core.QUALITY_SETTINGS else None),
             'target_kb': self.parse_target_kb(),
             'resolution': self.parse_resolution(),
-            'keep_aspect': self.aspect_ratio_var.get(),
-            'exif_mode': 'strip' if self.exif_strip_var.get() else 'keep',
+            'keep_aspect': self.aspect_check.isChecked(),
+            'exif_mode': 'strip' if self.exif_strip_check.isChecked() else 'keep',
             'exif_overrides': dict(self.exif_overrides),
             'watermark': self.build_watermark(),
-            'overwrite': self.overwrite_var.get(),
-            'merge': (self.merge_var.get() and output_format == 'PDF'
+            'overwrite': self.overwrite_check.isChecked(),
+            'merge': (self.merge_check.isChecked() and output_format == 'PDF'
                       and len(jobs) > 0),
-            'all_pages': self.all_pages_var.get(),
-            'output_file': self.output_file if len(jobs) == 1 or self.merge_var.get()
+            'all_pages': self.all_pages_check.isChecked(),
+            'output_file': self.output_file if len(jobs) == 1 or self.merge_check.isChecked()
                            else None,
             'output_dir': self.output_dir,
         }
 
-        self.convert_button.configure(state="disabled")
-        self.result_label.grid_remove()
-        self.open_folder_button.grid_remove()
-        self.set_status(tr("⏳ Konvertiere..."), 'accent')
-        self.progress_bar.set(0)
+        self.convert_button.setEnabled(False)
+        self.result_label.hide()
+        self.open_folder_button.hide()
+        self.set_status(tr("Konvertiere..."), 'accent')
+        self.progress_bar.setValue(0)
 
         thread = threading.Thread(target=self._convert_thread, args=(jobs, settings))
         thread.daemon = True
@@ -1328,7 +1774,7 @@ class PicConverterGUI:
                 results.append((tr("{n} Seite(n) → {name} ({size:.2f} MB)")
                                 .format(n=total, name=out.name, size=size_mb),
                                 True, out))
-                self.root.after(0, lambda: self._on_convert_done(results))
+                self._signals.done.emit(results)
                 return
 
             for i, (path, page) in enumerate(jobs):
@@ -1362,22 +1808,21 @@ class PicConverterGUI:
                 except Exception as e:
                     results.append((f"{label}: {e}", False, None))
 
-                progress = (i + 1) / total
-                self.root.after(0, lambda p=progress: self.progress_bar.set(p))
+                self._signals.progress.emit((i + 1) / total)
 
-            self.root.after(0, lambda: self._on_convert_done(results))
+            self._signals.done.emit(results)
 
         except Exception as e:
             results.append((str(e), False, None))
-            self.root.after(0, lambda: self._on_convert_done(results))
+            self._signals.done.emit(results)
 
     def _on_convert_done(self, results):
         """Zeigt das Ergebnis inline an (im GUI-Thread)"""
-        self.convert_button.configure(state="normal")
+        self.convert_button.setEnabled(True)
         succeeded = [r for r in results if r[1]]
         failed = [r for r in results if not r[1]]
 
-        self.progress_bar.set(1.0 if not failed else 0)
+        self.progress_bar.setValue(100 if not failed else 0)
 
         lines = []
         if len(results) == 1:
@@ -1390,14 +1835,13 @@ class PicConverterGUI:
                 lines.append(tr("… und {n} weitere Fehler")
                              .format(n=len(failed) - 3))
 
-        self.result_label.configure(
-            text="\n".join(lines),
-            text_color=COLORS['success'] if not failed else COLORS['error'])
-        self.result_label.grid()
+        self.result_label.setText("\n".join(lines))
+        self.set_kind(self.result_label, 'success' if not failed else 'error')
+        self.result_label.show()
 
         if succeeded:
             self.last_output_dir = succeeded[0][2].parent
-            self.open_folder_button.grid()
+            self.open_folder_button.show()
 
         if failed:
             self.set_status(tr("✗ {n} Konvertierung(en) fehlgeschlagen")
@@ -1407,50 +1851,23 @@ class PicConverterGUI:
 
     def open_output_folder(self):
         if self.last_output_dir:
-            subprocess.Popen(['xdg-open', str(self.last_output_dir)],
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-
-def detect_ui_scale():
-    """Ermittelt den HiDPI-Skalierungsfaktor.
-
-    CustomTkinter erkennt Display-Skalierung nur auf Windows/macOS selbst;
-    unter Linux (X11/XWayland) wird sie hier aus der Server-DPI abgeleitet.
-    Muss VOR dem Erstellen des Hauptfensters aufgerufen werden, damit alle
-    Widgets von Anfang an korrekt skaliert gezeichnet werden.
-    Manueller Override über die Umgebungsvariable PICCONVERTER_SCALE.
-    """
-    override = os.environ.get("PICCONVERTER_SCALE")
-    if override:
-        try:
-            return max(0.5, min(3.0, float(override)))
-        except ValueError:
-            print(f"Warnung: Ungültiger Wert PICCONVERTER_SCALE={override!r} "
-                  f"wird ignoriert", file=sys.stderr)
-    if not sys.platform.startswith("linux"):
-        return None
-    try:
-        probe = tk.Tk()
-        probe.withdraw()
-        scale = probe.winfo_fpixels('1i') / 96.0
-        probe.destroy()
-    except tk.TclError:
-        return None
-    if scale > 1.05:
-        return min(scale, 3.0)
-    return None
+            QDesktopServices.openUrl(
+                QUrl.fromLocalFile(str(self.last_output_dir)))
 
 
 def main():
-    ctk.set_appearance_mode("system")
-    ctk.set_default_color_theme("blue")
-    scale = detect_ui_scale()
-    if scale:
-        ctk.set_widget_scaling(scale)
-        ctk.set_window_scaling(scale)
-    root = create_window()
-    PicConverterGUI(root, ui_scale=scale or 1.0)
-    root.mainloop()
+    # Manueller HiDPI-Override (Qt skaliert unter Wayland sonst automatisch)
+    override = os.environ.get("PICCONVERTER_SCALE")
+    if override and "QT_SCALE_FACTOR" not in os.environ:
+        os.environ["QT_SCALE_FACTOR"] = override
+
+    app = QApplication(sys.argv)
+    app.setStyle("Fusion")
+    app.setApplicationName("PicConverter")
+    app.setDesktopFileName("picconverter")
+    window = PicConverterGUI()
+    window.show()
+    sys.exit(app.exec())
 
 
 if __name__ == '__main__':

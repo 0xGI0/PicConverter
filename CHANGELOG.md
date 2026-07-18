@@ -4,6 +4,20 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 Das Format folgt [Keep a Changelog](https://keepachangelog.com/de/), die
 Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
+## [Unreleased]
+
+### Geändert
+- **GUI von CustomTkinter auf PySide6 (Qt 6) portiert** — komplett neues,
+  flaches Design mit eigenem hellen/dunklen Theme (folgt weiterhin dem
+  System), Logo-Wortmarke im Header, dezente Sektionstitel statt Emojis,
+  ein einheitlicher Azur-Akzent
+- Drag & Drop jetzt nativ über Qt (tkinterdnd2 entfällt), native
+  Dateidialoge (KDE/GNOME-Portale)
+- HiDPI-Skalierung übernimmt Qt automatisch — unter Wayland pro Monitor;
+  die manuelle DPI-Erkennung (`detect_ui_scale`) entfällt,
+  `PICCONVERTER_SCALE` funktioniert weiterhin als Override
+- Abhängigkeiten: `customtkinter` und `tkinterdnd2` ersetzt durch `PySide6`
+
 ## [2.0.0] - 2026-07-18
 
 ### Hinzugefügt
