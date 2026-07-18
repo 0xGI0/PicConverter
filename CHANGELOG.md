@@ -4,6 +4,13 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 Das Format folgt [Keep a Changelog](https://keepachangelog.com/de/), die
 Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
+## [3.1.0] - 2026-07-18
+
+### Hinzugefügt
+- **macOS-Build (Apple Silicon)** bei jedem Release: `.app`-Bundle plus
+  CLI-Binary als ZIP — unsigniert, daher einmalig die Gatekeeper-Quarantäne
+  aufheben (siehe README)
+
 ## [3.0.0] - 2026-07-18
 
 ### Hinzugefügt

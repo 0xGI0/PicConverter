@@ -48,7 +48,15 @@ An **image & PDF conversion tool** for Python with a modern GUI (Qt/PySide6) and
 
 ## 🚀 Installation
 
-**Pre-built binaries (no Python needed):** Windows `.exe` and Linux builds are attached to the [Releases](https://github.com/0xGI0/PicConverter/releases).
+**Pre-built binaries (no Python needed):** Windows `.exe`, Linux and macOS (Apple Silicon) builds are attached to the [Releases](https://github.com/0xGI0/PicConverter/releases).
+
+> **macOS:** The app is not code-signed (no Apple Developer certificate).
+> On first launch Gatekeeper reports it as "damaged" or "unverified" —
+> remove the quarantine flag once, then the app starts normally:
+>
+> ```bash
+> xattr -d com.apple.quarantine /path/to/PicConverter.app
+> ```
 
 **From source:**
 
@@ -209,7 +217,7 @@ python picconverter_cli.py photo.jpg -f png --watermark-image logo.png --waterma
 | **GUI framework** | PySide6 (Qt 6) — native Wayland, drag & drop and per-monitor HiDPI included |
 | **Configuration** | `~/.config/picconverter/` (presets, GUI settings) |
 | **Tests & lint** | pytest + ruff, CI via GitHub Actions |
-| **Releases** | PyInstaller binaries (Windows/Linux) per git tag |
+| **Releases** | PyInstaller binaries (Windows/Linux/macOS) per git tag |
 
 ---
 
