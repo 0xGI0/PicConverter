@@ -62,8 +62,8 @@ jobs:
           picconverter_cli.py
       - name: Umbenennen
         run: |
-          Move-Item dist/PicConverter.exe dist/PicConverter-${{ github.ref_name }}-windows.exe
-          Move-Item dist/picconverter-cli.exe dist/picconverter-cli-${{ github.ref_name }}-windows.exe
+          Move-Item dist/PicConverter.exe dist/PicConverter-${{ github.ref_name }}-windows-x86_64.exe
+          Move-Item dist/picconverter-cli.exe dist/picconverter-cli-${{ github.ref_name }}-windows-x86_64.exe
       - uses: actions/upload-artifact@v7
         with:
           name: windows-build
