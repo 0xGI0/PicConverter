@@ -4,7 +4,7 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 Das Format folgt [Keep a Changelog](https://keepachangelog.com/de/), die
 Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
-## [Unreleased]
+## [3.0.0] - 2026-07-18
 
 ### Hinzugefügt
 - **Sprachumschalter in der GUI** (Auto/DE/EN, in der Sidebar): die Sprache

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "picconverter"
-version = "2.0.0"
+version = "3.0.0"
 description = "Bild- & PDF-Konverter mit moderner GUI (Qt/PySide6) und CLI"
 readme = "README.md"
 requires-python = ">=3.9"

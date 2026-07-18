@@ -13,7 +13,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps, ImageSequence, ExifTags
 
 from picconverter_i18n import tr
 
-__version__ = "2.0.0"
+__version__ = "3.0.0"
 
 # PDF-Eingabe ist optional -- ohne PyMuPDF bleiben alle Bildformate nutzbar
 try:
