@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=PicConverter
+GenericName=Bild- & PDF-Konverter
+GenericName[en]=Image & PDF Converter
+Comment=Bilder und PDFs zwischen Formaten konvertieren
+Comment[en]=Convert images and PDFs between formats
+Exec=picconverter-gui
+Icon=image-x-generic
+Terminal=false
+Categories=Graphics;
+MimeType=image/jpeg;image/png;image/bmp;image/tiff;image/gif;image/webp;application/pdf;

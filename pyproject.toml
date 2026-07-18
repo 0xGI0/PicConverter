@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "picconverter"
+version = "2.0.0"
+description = "Bild- & PDF-Konverter mit moderner GUI (CustomTkinter) und CLI"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "0xGI0" }]
+keywords = ["image", "converter", "pdf", "exif", "gui", "cli"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Multimedia :: Graphics :: Graphics Conversion",
+]
+dependencies = [
+    "Pillow>=10.0",
+    "customtkinter>=5.2",
+]
+
+[project.optional-dependencies]
+pdf = ["PyMuPDF>=1.24"]
+dnd = ["tkinterdnd2>=0.4"]
+all = ["PyMuPDF>=1.24", "tkinterdnd2>=0.4"]
+dev = ["pytest>=8"]
+
+[project.urls]
+Homepage = "https://github.com/0xGI0/PicConverter"
+Issues = "https://github.com/0xGI0/PicConverter/issues"
+
+[project.scripts]
+picconverter = "picconverter_cli:main"
+
+[project.gui-scripts]
+picconverter-gui = "picconverter_gui:main"
+
+[tool.setuptools]
+py-modules = ["picconverter_core", "picconverter_cli", "picconverter_gui"]
