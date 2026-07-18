@@ -1,14 +1,12 @@
 """Tests für picconverter_cli (End-to-End über subprocess)"""
 
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 from PIL import Image
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
-import picconverter_core as core
 
 CLI = Path(__file__).parent.parent / 'picconverter_cli.py'
 
@@ -106,6 +104,83 @@ def test_pdf_alle_seiten(tmp_path):
     assert result.returncode == 0, result.stderr
     assert sorted(p.name for p in out_dir.iterdir()) == \
         ['drei_seite1.png', 'drei_seite2.png', 'drei_seite3.png']
+
+
+def test_version():
+    result = run_cli('--version')
+    assert result.returncode == 0
+    assert 'PicConverter 2.0.0' in result.stdout
+
+
+def test_ueberschreibschutz(sample_jpg, tmp_path):
+    out = tmp_path / 'bild.png'
+    out.write_bytes(b'bestehende datei')
+    result = run_cli(sample_jpg, '-f', 'png', '-o', out)
+    assert result.returncode == 0, result.stderr
+    assert out.read_bytes() == b'bestehende datei'  # Original unangetastet
+    assert (tmp_path / 'bild (1).png').exists()
+
+
+def test_overwrite_flag(sample_jpg, tmp_path):
+    out = tmp_path / 'bild.png'
+    out.write_bytes(b'bestehende datei')
+    result = run_cli(sample_jpg, '-f', 'png', '-o', out, '--overwrite')
+    assert result.returncode == 0, result.stderr
+    assert Image.open(out).format == 'PNG'
+    assert not (tmp_path / 'bild (1).png').exists()
+
+
+def test_preset(sample_jpg, tmp_path, monkeypatch):
+    monkeypatch.setenv('XDG_CONFIG_HOME', str(tmp_path / 'conf'))
+    result = run_cli(sample_jpg, '--preset', 'web', '-o', tmp_path / 'aus.webp')
+    assert result.returncode == 0, result.stderr
+    assert Image.open(tmp_path / 'aus.webp').format == 'WEBP'
+
+
+def test_preset_speichern_und_nutzen(sample_jpg, tmp_path):
+    env = dict(os.environ, XDG_CONFIG_HOME=str(tmp_path / 'conf'))
+    saved = subprocess.run(
+        [sys.executable, str(CLI), '--save-preset', 'klein', '-f', 'jpg', '-q', '30'],
+        capture_output=True, text=True, env=env)
+    assert saved.returncode == 0, saved.stderr
+    used = subprocess.run(
+        [sys.executable, str(CLI), str(sample_jpg), '--preset', 'klein',
+         '-o', str(tmp_path / 'klein.jpg')],
+        capture_output=True, text=True, env=env)
+    assert used.returncode == 0, used.stderr
+    assert (tmp_path / 'klein.jpg').exists()
+
+
+def test_wasserzeichen_text(sample_jpg, tmp_path):
+    out = tmp_path / 'marke.png'
+    result = run_cli(sample_jpg, '-f', 'png', '--watermark-text', 'Demo',
+                     '--watermark-opacity', '100', '-o', out)
+    assert result.returncode == 0, result.stderr
+    assert Image.open(out).size == (120, 80)
+
+
+def test_quiet(sample_jpg, tmp_path):
+    result = run_cli(sample_jpg, '-f', 'png', '-o', tmp_path / 'q.png', '--quiet')
+    assert result.returncode == 0
+    assert result.stdout.strip() == ''
+
+
+def test_animierte_gif_batch(tmp_path):
+    frames = [Image.new('RGB', (40, 30), c) for c in ('red', 'blue')]
+    src = tmp_path / 'anim.gif'
+    frames[0].save(src, save_all=True, append_images=frames[1:], duration=100)
+    result = run_cli(src, '-f', 'webp', '-o', tmp_path / 'anim.webp')
+    assert result.returncode == 0, result.stderr
+    assert Image.open(tmp_path / 'anim.webp').n_frames == 2
+
+
+def test_englische_ausgabe(sample_jpg, tmp_path):
+    env = dict(os.environ, PICCONVERTER_LANG='en')
+    result = subprocess.run(
+        [sys.executable, str(CLI), '--help'],
+        capture_output=True, text=True, env=env)
+    assert result.returncode == 0
+    assert 'Target format' in result.stdout
 
 
 def test_estimate_schreibt_nichts(sample_jpg, tmp_path):

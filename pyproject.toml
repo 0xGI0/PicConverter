@@ -25,8 +25,9 @@ dependencies = [
 [project.optional-dependencies]
 pdf = ["PyMuPDF>=1.24"]
 dnd = ["tkinterdnd2>=0.4"]
-all = ["PyMuPDF>=1.24", "tkinterdnd2>=0.4"]
-dev = ["pytest>=8"]
+heif = ["pillow-heif>=0.16"]
+all = ["PyMuPDF>=1.24", "tkinterdnd2>=0.4", "pillow-heif>=0.16"]
+dev = ["pytest>=8", "ruff>=0.4"]
 
 [project.urls]
 Homepage = "https://github.com/0xGI0/PicConverter"
@@ -39,4 +40,12 @@ picconverter = "picconverter_cli:main"
 picconverter-gui = "picconverter_gui:main"
 
 [tool.setuptools]
-py-modules = ["picconverter_core", "picconverter_cli", "picconverter_gui"]
+py-modules = ["picconverter_core", "picconverter_cli", "picconverter_gui",
+              "picconverter_i18n"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+ignore = ["E741"]

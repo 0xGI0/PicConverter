@@ -177,6 +177,114 @@ class TestEstimate:
         assert abs(estimated - real) < 0.01
 
 
+@pytest.fixture
+def animated_gif(tmp_path):
+    frames = [Image.new('RGB', (80, 60), c) for c in ('red', 'green', 'blue')]
+    path = tmp_path / 'anim.gif'
+    frames[0].save(path, save_all=True, append_images=frames[1:],
+                   duration=200, loop=0)
+    return path
+
+
+class TestAnimation:
+    def test_gif_zu_gif_behaelt_frames(self, animated_gif, tmp_path):
+        img = core.load_image(animated_gif)
+        assert core.is_animated(img)
+        out = tmp_path / 'out.gif'
+        core.convert(img, out, 'GIF')
+        assert Image.open(out).n_frames == 3
+
+    def test_gif_zu_webp_behaelt_frames(self, animated_gif, tmp_path):
+        img = core.load_image(animated_gif)
+        out = tmp_path / 'out.webp'
+        core.convert(img, out, 'WebP', quality=80)
+        assert Image.open(out).n_frames == 3
+
+    def test_gif_zu_png_nimmt_erstes_frame(self, animated_gif, tmp_path):
+        img = core.load_image(animated_gif)
+        out = tmp_path / 'out.png'
+        core.convert(img, out, 'PNG')
+        result = Image.open(out)
+        assert getattr(result, 'n_frames', 1) == 1
+
+    def test_animation_mit_resize(self, animated_gif, tmp_path):
+        img = core.load_image(animated_gif)
+        out = tmp_path / 'klein.gif'
+        core.convert(img, out, 'GIF', width=40, height=30)
+        result = Image.open(out)
+        assert result.size == (40, 30) and result.n_frames == 3
+
+
+class TestWatermark:
+    def test_text_wasserzeichen(self):
+        img = Image.new('RGB', (400, 300), 'black')
+        marked = core.apply_watermark(img, text='Test', opacity=100)
+        assert marked.size == img.size
+        assert marked.getpixel((10, 10)) == (0, 0, 0)  # oben links unberührt
+        # Unten rechts muss sich etwas verändert haben
+        region = marked.crop((200, 200, 400, 300))
+        assert region.getextrema() != ((0, 0), (0, 0), (0, 0))
+
+    def test_bild_wasserzeichen(self, tmp_path):
+        logo = tmp_path / 'logo.png'
+        Image.new('RGBA', (50, 50), (255, 255, 255, 255)).save(logo)
+        img = Image.new('RGB', (400, 300), 'black')
+        marked = core.apply_watermark(img, image_path=logo,
+                                      position='mitte', opacity=100)
+        assert marked.getpixel((200, 150)) != (0, 0, 0)
+
+    def test_ohne_angaben_unveraendert(self):
+        img = Image.new('RGB', (10, 10), 'red')
+        assert core.apply_watermark(img) is img
+
+
+class TestUniquePath:
+    def test_frei_bleibt_gleich(self, tmp_path):
+        p = tmp_path / 'neu.png'
+        assert core.unique_path(p) == p
+
+    def test_zaehlt_hoch(self, tmp_path):
+        p = tmp_path / 'da.png'
+        p.write_bytes(b'x')
+        assert core.unique_path(p) == tmp_path / 'da (1).png'
+        (tmp_path / 'da (1).png').write_bytes(b'x')
+        assert core.unique_path(p) == tmp_path / 'da (2).png'
+
+
+@pytest.mark.skipif(not core.HEIF_AVAILABLE, reason="pillow-heif fehlt")
+class TestHeic:
+    def test_heic_laden_und_konvertieren(self, tmp_path):
+        src = tmp_path / 'foto.heic'
+        Image.new('RGB', (120, 90), (10, 120, 200)).save(src, format='HEIF')
+        img = core.load_image(src)
+        assert img.size == (120, 90)
+        out = tmp_path / 'foto.jpg'
+        core.convert(img, out, 'JPEG', quality=90)
+        assert Image.open(out).format == 'JPEG'
+
+    def test_heic_in_input_extensions(self):
+        assert 'heic' in core.INPUT_EXTENSIONS
+
+    @pytest.mark.skipif(not core.AVIF_AVAILABLE, reason="AVIF nicht verfügbar")
+    def test_avif_laden(self, tmp_path):
+        src = tmp_path / 'foto.avif'
+        Image.new('RGB', (60, 40), (200, 30, 30)).save(src)
+        assert core.load_image(src).size == (60, 40)
+
+
+class TestPresets:
+    def test_builtin_presets_vorhanden(self):
+        presets = core.load_presets()
+        assert 'web' in presets and 'email' in presets
+
+    def test_nutzer_preset_speichern(self, tmp_path, monkeypatch):
+        monkeypatch.setenv('XDG_CONFIG_HOME', str(tmp_path))
+        core.save_user_preset('mein', {'format': 'jpg', 'quality': 70,
+                                       'unbekannt': 'wird verworfen'})
+        presets = core.load_presets()
+        assert presets['mein'] == {'format': 'jpg', 'quality': 70}
+
+
 class TestOutputStem:
     def test_ohne_seite(self):
         assert core.output_stem(Path('foto.jpg')) == 'foto'

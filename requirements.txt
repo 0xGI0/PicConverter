@@ -9,3 +9,6 @@ tkinterdnd2>=0.4
 
 # PDF-Eingabe (PDF → Bild); Bild → PDF geht auch ohne (via Pillow)
 PyMuPDF>=1.24
+
+# Optional: HEIC/HEIF-Eingabe (iPhone-Fotos); AVIF kann Pillow ab v11 nativ
+pillow-heif>=0.16
