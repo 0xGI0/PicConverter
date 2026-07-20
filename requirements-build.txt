@@ -1,0 +1,25 @@
+# Gepinnte Abhängigkeiten für den Release-Workflow (.github/workflows/release.yml).
+#
+# Warum: Ohne Pins zieht jeder Build, was gerade neu auf PyPI liegt. Dann lässt
+# sich ein Fehlerbericht zu einem Release nicht nachstellen (der Nachbau bettet
+# andere Bibliotheken ein), und ein gebrochener Build ist nicht von einem
+# Dependency-Update über Nacht zu unterscheiden. Mit Pins kommen Updates als
+# Dependabot-PR -- du entscheidest, wann ein Qt-Sprung in ein Release wandert.
+#
+# Umfang: direkte Abhängigkeiten plus die zwei, die das Bundling bestimmen.
+# Kein vollständiger transitiver Lock (dafür bräuchte es pip-compile mit
+# Hashes). "Reproduzierbar" heißt hier also: gleiche Bibliotheken, nicht
+# identische Bytes -- PyInstaller bettet ohnehin Zeitstempel und Pfade ein.
+#
+# Stand: die Versionen, mit denen v3.2.0 gebaut wurde.
+#
+# Laufzeit-Abhängigkeiten für Nutzer stehen in requirements.txt (dort mit >=,
+# absichtlich): Diese Datei betrifft nur die Release-Binaries.
+
+Pillow==12.3.0
+PySide6==6.11.1
+shiboken6==6.11.1                    # muss exakt zur PySide6-Version passen
+PyMuPDF==1.28.0
+pillow-heif==1.4.0
+pyinstaller==6.21.0
+pyinstaller-hooks-contrib==2026.6    # bestimmt, welche Qt-Plugins eingesammelt werden
