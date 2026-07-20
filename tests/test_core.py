@@ -34,6 +34,30 @@ def oriented_jpeg(tmp_path):
 
 
 @pytest.fixture
+def svg_file(tmp_path):
+    """SVG 100x60: blauer Kreis auf transparentem Grund"""
+    path = tmp_path / 'kreis.svg'
+    path.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="60" '
+        'viewBox="0 0 100 60">'
+        '<circle cx="50" cy="30" r="25" fill="#3399ff"/></svg>'
+    )
+    return path
+
+
+@pytest.fixture
+def fluid_svg(tmp_path):
+    """SVG mit Prozent-Maßen -- MuPDF kennt dafür nur eine Letter-Seite"""
+    path = tmp_path / 'fluid.svg'
+    path.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" '
+        'viewBox="0 0 200 100"><rect width="200" height="100" fill="#ee9944"/>'
+        '</svg>'
+    )
+    return path
+
+
+@pytest.fixture
 def two_page_pdf(tmp_path):
     doc = pymupdf.open()
     for i in range(2):
@@ -66,6 +90,57 @@ class TestLoadImage:
 
     def test_pdf_seitenanzahl(self, two_page_pdf):
         assert core.pdf_page_count(two_page_pdf) == 2
+
+
+class TestSvg:
+    def test_svg_wird_erkannt(self, svg_file):
+        assert core.is_svg(svg_file)
+        assert not core.is_svg('bild.png')
+
+    def test_svg_ist_eingabeformat(self):
+        assert 'svg' in core.INPUT_EXTENSIONS
+
+    def test_72_dpi_ergibt_originalgroesse(self, svg_file):
+        assert core.load_image(svg_file, dpi=72).size == (100, 60)
+
+    def test_dpi_skaliert_verlustfrei(self, svg_file):
+        assert core.load_image(svg_file, dpi=144).size == (200, 120)
+
+    def test_zielbreite_schlaegt_dpi(self, svg_file):
+        img = core.load_image(svg_file, dpi=72, svg_width=400)
+        assert img.size == (400, 240)
+
+    def test_transparenz_bleibt_erhalten(self, svg_file):
+        img = core.load_image(svg_file, dpi=72)
+        assert img.mode == 'RGBA'
+        assert img.getpixel((0, 0))[3] == 0      # Ecke ist transparent
+        assert img.getpixel((50, 30))[3] == 255  # Kreis ist deckend
+
+    def test_kaputtes_svg_meldet_klartext(self, tmp_path):
+        bad = tmp_path / 'kaputt.svg'
+        bad.write_text('<svg><kein gueltiges svg')
+        with pytest.raises(RuntimeError, match="konnte nicht gelesen werden"):
+            core.load_image(bad)
+
+    def test_prozentmasse_folgen_der_viewbox(self, fluid_svg):
+        img = core.load_image(fluid_svg, svg_width=800)
+        assert img.size == (800, 400)
+
+    def test_prozentmasse_ohne_zielbreite_behalten_verhaeltnis(self, fluid_svg):
+        w, h = core.load_image(fluid_svg, dpi=72).size
+        assert round(w / h, 2) == 2.0
+
+    def test_prozentmasse_lassen_keinen_rand_stehen(self, fluid_svg):
+        img = core.load_image(fluid_svg, svg_width=200)
+        assert img.size == (200, 100)
+        assert img.getpixel((0, 0))[3] == 255      # Inhalt bis in die Ecken
+        assert img.getpixel((199, 99))[3] == 255
+
+    def test_svg_zu_jpeg_flacht_transparenz_ab(self, svg_file, tmp_path):
+        img = core.load_image(svg_file, dpi=72)
+        out = tmp_path / 'kreis.jpg'
+        core.convert(img, out, 'JPEG')
+        assert Image.open(out).getpixel((0, 0)) == (255, 255, 255)
 
 
 class TestPrepareForFormat:

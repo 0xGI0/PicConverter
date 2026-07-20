@@ -31,6 +31,7 @@ An **image & PDF conversion tool** for Python with a modern GUI (Qt/PySide6) and
 
 - **All common image formats**: JPEG, PNG, BMP, TIFF, GIF, WebP, ICO — plus **HEIC/HEIF and AVIF** as input (iPhone photos)
 - **PDF in both directions**: save images as PDF or export PDF pages as images (page selection, all pages, DPI choice)
+- **SVG input**: rasterize vector graphics at any size — via DPI or an exact target width; transparency is preserved
 - **Batch processing**: queue with mini previews in the GUI, globs like `*.jpg` and parallel processing in the CLI
 - **Combined PDF**: merge multiple images (and PDF pages) into one multi-page PDF
 - **EXIF metadata**: automatic correct image orientation; keep, strip, or edit metadata fields (artist, copyright, date, …)
@@ -157,7 +158,8 @@ python picconverter_cli.py photo.jpg -f png --watermark-image logo.png --waterma
 | `--width` | `-w` | Width in pixels¹ | `-w 1920` |
 | `--height` | | Height in pixels¹ | `--height 1080` |
 | `--page` | | PDF page or `all` (default: 1) | `--page all` |
-| `--dpi` | | PDF render DPI (default: 150) | `--dpi 300` |
+| `--dpi` | | PDF/SVG render DPI (default: 150) | `--dpi 300` |
+| `--svg-width` | | Rasterize SVG at an exact pixel width | `--svg-width 1024` |
 | `--merge` | | Everything into one PDF (`-f pdf` only) | `--merge` |
 | `--strip-exif` | | Remove EXIF metadata | `--strip-exif` |
 | `--exif-set` | | Set/delete an EXIF field | `--exif-set Artist=Me` |
@@ -193,6 +195,7 @@ python picconverter_cli.py photo.jpg -f png --watermark-image logo.png --waterma
 | **GIF** | ✅ | ✅ | – | – |
 | **ICO** | ✅ | ✅ | – | – |
 | **PDF** | ✅ (requires PyMuPDF) | ✅ | – | – |
+| **SVG** | ✅ (requires PyMuPDF) | – | – | – |
 | **HEIC/HEIF** | ✅ (requires pillow-heif) | – | – | – |
 | **AVIF** | ✅ (Pillow ≥ 11) | – | – | – |
 
@@ -202,6 +205,7 @@ python picconverter_cli.py photo.jpg -f png --watermark-image logo.png --waterma
 - **Transparency**: JPEG, BMP, and PDF do not support transparency — it is automatically replaced with white
 - **EXIF**: carried over to JPEG, PNG, WebP, and TIFF; the orientation tag is applied on load so portrait photos stay upright
 - **Animation**: GIF↔WebP keeps all frames; other target formats use the first frame (with a notice)
+- **SVG**: redrawn as vector rather than upscaled — every target size stays sharp. Without an option 150 DPI applies; `--svg-width` (CLI) or the target width (GUI) renders at exactly that pixel width. SVGs with no size attributes *and* no `viewBox` fall back to a Letter page, as there is no size information to go on
 
 ---
 
@@ -265,7 +269,7 @@ PICCONVERTER_LANG=en picconverter-gui   # or =de
 
 Contributions are welcome! Fork the repository, create a feature branch, and open a pull request. Run the tests with `pytest tests/`, the linter with `ruff check .`.
 
-**Feature ideas:** SVG input, password-protected PDFs, conversion history, more languages
+**Feature ideas:** password-protected PDFs, conversion history, more languages
 
 ---
 

@@ -1175,16 +1175,22 @@ class PicConverterGUI(QMainWindow):
     # ---------- Dateiauswahl und Laden ----------
 
     def select_files(self):
-        image_exts = sorted(core.INPUT_EXTENSIONS - {'pdf'})
-        image_patterns = ' '.join(f'*.{ext}' for ext in image_exts)
-        filters = ';;'.join([
-            tr("Alle unterstützten Dateien") + f" ({image_patterns} *.pdf)",
+        # PDF und SVG sind Dokumentformate -- eigener Filter, nicht "Alle Bilder"
+        doc_exts = core.INPUT_EXTENSIONS & {'pdf', 'svg'}
+        image_patterns = ' '.join(
+            f'*.{ext}' for ext in sorted(core.INPUT_EXTENSIONS - doc_exts))
+        all_patterns = ' '.join(
+            f'*.{ext}' for ext in sorted(core.INPUT_EXTENSIONS))
+        filters = [
+            tr("Alle unterstützten Dateien") + f" ({all_patterns})",
             tr("Alle Bilder") + f" ({image_patterns})",
             "PDF (*.pdf)",
-            tr("Alle Dateien") + " (*)",
-        ])
+        ]
+        if 'svg' in core.INPUT_EXTENSIONS:
+            filters.append("SVG (*.svg)")
+        filters.append(tr("Alle Dateien") + " (*)")
         filenames, _ = QFileDialog.getOpenFileNames(
-            self, tr("Bilder oder PDFs auswählen"), '', filters)
+            self, tr("Bilder oder PDFs auswählen"), '', ';;'.join(filters))
         if filenames:
             self.add_files([Path(f) for f in filenames])
 
@@ -1272,9 +1278,11 @@ class PicConverterGUI(QMainWindow):
             return None
         try:
             dpr = self.devicePixelRatioF()
-            img = Image.open(path)
-            img.thumbnail((int(22 * dpr), int(22 * dpr)),
-                          Image.Resampling.BILINEAR)
+            size = int(22 * dpr)
+            # SVG direkt in Thumbnail-Größe rastern statt großes Bild verkleinern
+            img = core.render_svg(path, width=size) if core.is_svg(path) \
+                else Image.open(path)
+            img.thumbnail((size, size), Image.Resampling.BILINEAR)
             thumb = QPixmap.fromImage(pil_to_qimage(img))
             thumb.setDevicePixelRatio(dpr)
         except Exception:
@@ -1389,6 +1397,9 @@ class PicConverterGUI(QMainWindow):
         if self.pdf_page_count:
             format_text = tr("PDF · Seite {page} von {count}").format(
                 page=self.page_entry.text(), count=self.pdf_page_count)
+        elif core.is_svg(path):
+            format_text = tr("SVG · gerastert auf {w}×{h}").format(
+                w=self.image.size[0], h=self.image.size[1])
         else:
             format_text = self.image.format or Image.open(path).format
             if core.is_animated(self.image):
@@ -1881,7 +1892,11 @@ class PicConverterGUI(QMainWindow):
                     else f"{path.name} ({tr('S.')} {page})"
                 out = self._output_for_job(path, page, settings)
                 try:
-                    img = core.load_image(path, page or 1)
+                    # SVG gleich in Zielbreite rastern statt nachträglich zu
+                    # skalieren -- Vektoren bleiben so bei jeder Größe scharf
+                    svg_width = settings['resolution'][0] \
+                        if core.is_svg(path) else None
+                    img = core.load_image(path, page or 1, svg_width=svg_width)
                     width, height = self.resolution_for(
                         img, *settings['resolution'], settings['keep_aspect'])
 

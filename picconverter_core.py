@@ -6,6 +6,7 @@ PicConverter Core - gemeinsame Konvertierungslogik für CLI und GUI
 import io
 import json
 import os
+import re
 from itertools import count
 from pathlib import Path
 
@@ -80,6 +81,8 @@ if HEIF_AVAILABLE:
     INPUT_EXTENSIONS |= {'heic', 'heif'}
 if AVIF_AVAILABLE:
     INPUT_EXTENSIONS.add('avif')
+if PDF_AVAILABLE:  # SVG wird über denselben MuPDF-Renderer gerastert
+    INPUT_EXTENSIONS.add('svg')
 
 # Positionen für Wasserzeichen
 WATERMARK_POSITIONS = ('unten-rechts', 'unten-links', 'oben-rechts',
@@ -136,13 +139,104 @@ def render_pdf_page(path, page=1, dpi=PDF_RENDER_DPI):
         doc.close()
 
 
+def is_svg(path):
+    return Path(path).suffix.lower() == '.svg'
+
+
+_SVG_ROOT = re.compile(r'<svg\b[^>]*>', re.IGNORECASE | re.DOTALL)
+_SVG_ATTR = re.compile(r'\b(width|height|viewBox)\s*=\s*["\']([^"\']*)["\']',
+                       re.IGNORECASE)
+
+
+def _svg_content_box(path, page_rect):
+    """Bereich der MuPDF-Seite, in dem die SVG-Inhalte tatsächlich liegen.
+
+    SVGs ohne feste Maße (width="100%") kennt MuPDF nur als Letter-Seite und
+    zeichnet den Inhalt zentriert hinein -- der Rest ist transparenter Rand.
+    Über die viewBox lässt sich der Inhaltsbereich exakt zurückrechnen.
+
+    Gibt None zurück, wenn die Seite bereits dem Inhalt entspricht (feste
+    Maße oder keine brauchbare viewBox); dann wird nichts zugeschnitten.
+    """
+    try:
+        # Nur der Kopf wird gebraucht -- große SVGs nicht komplett einlesen
+        with open(path, 'r', errors='replace') as handle:
+            head = handle.read(8192)
+    except OSError:
+        return None
+    root = _SVG_ROOT.search(head)
+    if not root:
+        return None
+    attrs = {m.group(1).lower(): m.group(2)
+             for m in _SVG_ATTR.finditer(root.group(0))}
+
+    def is_fixed(value):
+        return value is not None and not value.strip().endswith('%')
+
+    # Feste Maße: MuPDF übernimmt sie direkt, die Seite ist schon korrekt.
+    # Fehlt width/height ganz, zieht MuPDF ebenfalls die viewBox heran.
+    if is_fixed(attrs.get('width')) and is_fixed(attrs.get('height')):
+        return None
+    if 'width' not in attrs and 'height' not in attrs:
+        return None
+
+    box = (attrs.get('viewbox') or '').replace(',', ' ').split()
+    if len(box) != 4:
+        return None
+    try:
+        view_w, view_h = float(box[2]), float(box[3])
+    except ValueError:
+        return None
+    if view_w <= 0 or view_h <= 0:
+        return None
+
+    # MuPDF skaliert die viewBox mittig in die Seite ("contain")
+    scale = min(page_rect.width / view_w, page_rect.height / view_h)
+    width, height = view_w * scale, view_h * scale
+    left = (page_rect.width - width) / 2
+    top = (page_rect.height - height) / 2
+    return pymupdf.Rect(left, top, left + width, top + height)
+
+
+def render_svg(path, dpi=PDF_RENDER_DPI, width=None):
+    """Rastert eine SVG-Datei als PIL-Bild (RGBA, Transparenz bleibt erhalten).
+
+    Mit width wird auf genau diese Pixelbreite gerendert, sonst bestimmt dpi
+    die Auflösung (72 dpi entspricht den SVG-Originalmaßen). Vektoren werden
+    dabei jeweils neu gezeichnet statt hochskaliert -- jede Größe bleibt scharf.
+
+    Bei SVGs ohne feste Maße (width="100%") wird der Letter-Rand, den MuPDF
+    darum legt, anhand der viewBox wieder weggeschnitten.
+    """
+    _require_pymupdf()
+    try:
+        doc = pymupdf.open(path)
+    except Exception as err:
+        raise RuntimeError(
+            tr("SVG konnte nicht gelesen werden: {name}")
+            .format(name=Path(path).name)
+        ) from err
+    try:
+        page = doc[0]
+        clip = _svg_content_box(path, page.rect)
+        source = clip or page.rect
+        zoom = width / source.width if width else dpi / 72
+        # Ursprung vorschieben: sonst rundet MuPDF die skalierte Clip-Box nach
+        # außen und hängt eine angeschnittene Randzeile ans Bild
+        matrix = pymupdf.Matrix(zoom, zoom).pretranslate(-source.x0, -source.y0)
+        pix = page.get_pixmap(matrix=matrix, alpha=True, clip=clip)
+        return Image.frombytes('RGBA', (pix.width, pix.height), pix.samples)
+    finally:
+        doc.close()
+
+
 def is_animated(image):
     """True, wenn das Bild mehrere Frames hat (animiertes GIF/WebP)"""
     return getattr(image, 'n_frames', 1) > 1
 
 
-def load_image(path, page=1, dpi=PDF_RENDER_DPI):
-    """Öffnet ein Bild oder rendert eine PDF-Seite.
+def load_image(path, page=1, dpi=PDF_RENDER_DPI, svg_width=None):
+    """Öffnet ein Bild oder rastert eine PDF-Seite bzw. eine SVG-Datei.
 
     Bei Bildern wird die EXIF-Orientierung direkt eingerechnet (Hochkant-Fotos
     bleiben hochkant); das Orientierungs-Tag ist danach aus den EXIF-Daten
@@ -152,6 +246,8 @@ def load_image(path, page=1, dpi=PDF_RENDER_DPI):
     path = Path(path)
     if is_pdf(path):
         return render_pdf_page(path, page, dpi)
+    if is_svg(path):
+        return render_svg(path, dpi, svg_width)
     img = Image.open(path)
     if is_animated(img):
         return img

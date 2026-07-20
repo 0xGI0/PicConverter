@@ -156,6 +156,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=tr("""
 Unterstützte Formate: {formats}
+Nur als Eingabe: {input_only}
 EXIF-Felder für --exif-set: {exif_fields}
 Presets: {presets}
 
@@ -164,11 +165,15 @@ Beispiele:
   %(prog)s *.jpg -f webp -q 85                      # Batch
   %(prog)s foto.jpg -f jpg --target-size 500        # max. 500 KB
   %(prog)s dokument.pdf -f png --page all --dpi 300 # alle Seiten
+  %(prog)s logo.svg -f png --svg-width 1024         # SVG rastern
   %(prog)s scan1.png scan2.png -f pdf --merge -o dokument.pdf
   %(prog)s foto.jpg --preset web                    # Preset anwenden
   %(prog)s foto.jpg -f jpg --strip-exif             # Metadaten entfernen
   %(prog)s foto.jpg -f jpg --watermark-text "© 2026"
         """).format(formats=', '.join(core.FORMAT_BY_EXT),
+                    input_only=', '.join(
+                        sorted(core.INPUT_EXTENSIONS - set(core.FORMAT_BY_EXT))
+                    ) or '—',
                     exif_fields=', '.join(core.EXIF_EDITABLE_TAGS),
                     presets=', '.join(sorted(core.load_presets())))
     )
@@ -193,8 +198,11 @@ Beispiele:
     parser.add_argument('--page', default='1',
                         help=tr("PDF-Eingabe: Seitennummer oder 'all' für alle Seiten (Standard: 1)"))
     parser.add_argument('--dpi', type=int, default=core.PDF_RENDER_DPI,
-                        help=tr('PDF-Eingabe: Render-Auflösung in DPI (Standard: {dpi})')
+                        help=tr('PDF-/SVG-Eingabe: Render-Auflösung in DPI (Standard: {dpi})')
                         .format(dpi=core.PDF_RENDER_DPI))
+    parser.add_argument('--svg-width', type=int, metavar='PX',
+                        help=tr('SVG-Eingabe: auf genau diese Pixelbreite rendern '
+                                '(hat Vorrang vor --dpi)'))
     parser.add_argument('--merge', action='store_true',
                         help=tr('Alle Eingaben in eine mehrseitige PDF zusammenfassen (nur -f pdf)'))
     parser.add_argument('--strip-exif', action='store_true',
@@ -259,6 +267,9 @@ Beispiele:
                 tr("--page erwartet eine Seitennummer >= 1 oder 'all', nicht '{value}'")
                 .format(value=args.page))
 
+    if args.svg_width is not None and args.svg_width < 1:
+        parser.error(tr("--svg-width muss größer als 0 sein"))
+
     if args.quality is not None and args.target_size is not None:
         parser.error(tr("--quality und --target-size schließen sich gegenseitig aus"))
 
@@ -300,7 +311,8 @@ Beispiele:
     # Sonderfall: alles in eine PDF zusammenfassen
     if args.merge:
         try:
-            images = [core.load_image(path, page or 1, args.dpi) for path, page in jobs]
+            images = [core.load_image(path, page or 1, args.dpi, args.svg_width)
+                      for path, page in jobs]
             if watermark:
                 images = [core.apply_watermark(img, **watermark) for img in images]
             out = Path(args.output) if args.output else \
@@ -326,7 +338,7 @@ Beispiele:
         """Konvertiert einen Auftrag; gibt (ok, Meldung) zurück"""
         label = path.name if page is None else f"{path.name} ({tr('Seite')} {page})"
         try:
-            img = core.load_image(path, page or 1, args.dpi)
+            img = core.load_image(path, page or 1, args.dpi, args.svg_width)
             width, height = resolve_resolution(img, args.width, args.height)
 
             job_quality = quality

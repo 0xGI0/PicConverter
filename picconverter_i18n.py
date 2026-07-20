@@ -20,6 +20,8 @@ TRANSLATIONS = {
             "PDF input requires PyMuPDF. Install it with: pip install pymupdf",
         "Seite {page} existiert nicht — die PDF hat {count} Seite(n)":
             "Page {page} does not exist — the PDF has {count} page(s)",
+        "SVG konnte nicht gelesen werden: {name}":
+            "Could not read SVG: {name}",
         "Unbekanntes EXIF-Feld '{name}'. Verfügbar: {valid}":
             "Unknown EXIF field '{name}'. Available: {valid}",
         "Keine Bilder zum Zusammenfassen übergeben":
@@ -32,6 +34,7 @@ TRANSLATIONS = {
             'PicConverter CLI - Converts images and PDFs between formats',
         """
 Unterstützte Formate: {formats}
+Nur als Eingabe: {input_only}
 EXIF-Felder für --exif-set: {exif_fields}
 Presets: {presets}
 
@@ -40,6 +43,7 @@ Beispiele:
   %(prog)s *.jpg -f webp -q 85                      # Batch
   %(prog)s foto.jpg -f jpg --target-size 500        # max. 500 KB
   %(prog)s dokument.pdf -f png --page all --dpi 300 # alle Seiten
+  %(prog)s logo.svg -f png --svg-width 1024         # SVG rastern
   %(prog)s scan1.png scan2.png -f pdf --merge -o dokument.pdf
   %(prog)s foto.jpg --preset web                    # Preset anwenden
   %(prog)s foto.jpg -f jpg --strip-exif             # Metadaten entfernen
@@ -47,6 +51,7 @@ Beispiele:
         """:
             """
 Supported formats: {formats}
+Input only: {input_only}
 EXIF fields for --exif-set: {exif_fields}
 Presets: {presets}
 
@@ -55,6 +60,7 @@ Examples:
   %(prog)s *.jpg -f webp -q 85                      # batch
   %(prog)s photo.jpg -f jpg --target-size 500       # max. 500 KB
   %(prog)s document.pdf -f png --page all --dpi 300 # all pages
+  %(prog)s logo.svg -f png --svg-width 1024         # rasterize SVG
   %(prog)s scan1.png scan2.png -f pdf --merge -o document.pdf
   %(prog)s photo.jpg --preset web                   # apply a preset
   %(prog)s photo.jpg -f jpg --strip-exif            # remove metadata
@@ -79,8 +85,12 @@ Examples:
             'Show the estimated output size without converting',
         "PDF-Eingabe: Seitennummer oder 'all' für alle Seiten (Standard: 1)":
             "PDF input: page number or 'all' for every page (default: 1)",
-        'PDF-Eingabe: Render-Auflösung in DPI (Standard: {dpi})':
-            'PDF input: render resolution in DPI (default: {dpi})',
+        'PDF-/SVG-Eingabe: Render-Auflösung in DPI (Standard: {dpi})':
+            'PDF/SVG input: render resolution in DPI (default: {dpi})',
+        'SVG-Eingabe: auf genau diese Pixelbreite rendern (hat Vorrang vor --dpi)':
+            'SVG input: render at exactly this pixel width (takes precedence over --dpi)',
+        "--svg-width muss größer als 0 sein":
+            "--svg-width must be greater than 0",
         'Alle Eingaben in eine mehrseitige PDF zusammenfassen (nur -f pdf)':
             'Merge all inputs into one multi-page PDF (only with -f pdf)',
         'EXIF-Metadaten nicht in die Ausgabe übernehmen':
@@ -228,6 +238,7 @@ Examples:
         "✓ Datei erfolgreich geladen": "✓ File loaded successfully",
         "✗ Fehler beim Laden: {error}": "✗ Failed to load: {error}",
         "PDF · Seite {page} von {count}": "PDF · page {page} of {count}",
+        "SVG · gerastert auf {w}×{h}": "SVG · rasterized to {w}×{h}",
         " · animiert ({n} Frames)": " · animated ({n} frames)",
         "{n} Einträge": "{n} entries",
         "keine": "none",

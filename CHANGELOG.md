@@ -4,6 +4,19 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 Das Format folgt [Keep a Changelog](https://keepachangelog.com/de/), die
 Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
+## [Unveröffentlicht]
+
+### Hinzugefügt
+- **SVG als Eingabeformat** (benötigt PyMuPDF, ist bereits Abhängigkeit für
+  PDF): SVGs lassen sich nach PNG, JPEG, WebP usw. konvertieren. Vektoren
+  werden dabei in der Zielgröße neu gezeichnet statt hochskaliert, Transparenz
+  bleibt erhalten
+- **`--svg-width`** in der CLI: rastert auf exakt diese Pixelbreite und hat
+  Vorrang vor `--dpi`. In der GUI übernimmt die eingestellte Zielbreite
+  dieselbe Rolle automatisch
+- SVGs ohne feste Maße (`width="100%"`) werden anhand ihrer `viewBox`
+  zugeschnitten, statt mit Letter-Rand herauszufallen
+
 ## [3.1.0] - 2026-07-18
 
 ### Hinzugefügt

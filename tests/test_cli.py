@@ -192,3 +192,37 @@ def test_estimate_schreibt_nichts(sample_jpg, tmp_path):
     assert result.returncode == 0, result.stderr
     assert not out.exists()
     assert 'geschätzt' in result.stdout
+
+
+@pytest.fixture
+def sample_svg(tmp_path):
+    path = tmp_path / 'kreis.svg'
+    path.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="60" '
+        'viewBox="0 0 100 60">'
+        '<circle cx="50" cy="30" r="25" fill="#3399ff"/></svg>'
+    )
+    return path
+
+
+def test_svg_zu_png(sample_svg, tmp_path):
+    pytest.importorskip("pymupdf")
+    out = tmp_path / 'kreis.png'
+    result = run_cli(sample_svg, '-f', 'png', '-o', out, '--dpi', '72')
+    assert result.returncode == 0, result.stderr
+    assert Image.open(out).size == (100, 60)
+
+
+def test_svg_zielbreite(sample_svg, tmp_path):
+    pytest.importorskip("pymupdf")
+    out = tmp_path / 'gross.png'
+    result = run_cli(sample_svg, '-f', 'png', '-o', out, '--svg-width', '500')
+    assert result.returncode == 0, result.stderr
+    assert Image.open(out).size == (500, 300)
+
+
+def test_svg_breite_muss_positiv_sein(sample_svg, tmp_path):
+    result = run_cli(sample_svg, '-f', 'png', '-o', tmp_path / 'x.png',
+                     '--svg-width', '0')
+    assert result.returncode != 0
+    assert 'größer als 0' in result.stderr

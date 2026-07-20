@@ -31,6 +31,7 @@ Ein **Bild- & PDF-Konvertierungs-Tool** für Python mit moderner GUI (Qt/PySide6
 
 - **Alle gängigen Bildformate**: JPEG, PNG, BMP, TIFF, GIF, WebP, ICO — plus **HEIC/HEIF und AVIF** als Eingabe (iPhone-Fotos)
 - **PDF in beide Richtungen**: Bilder als PDF speichern oder PDF-Seiten als Bild exportieren (Seitenauswahl, alle Seiten, DPI-Wahl)
+- **SVG-Eingabe**: Vektorgrafiken in jeder Größe rastern — über DPI oder eine exakte Zielbreite; Transparenz bleibt erhalten
 - **Batch-Verarbeitung**: Warteschlange mit Mini-Vorschauen in der GUI, Globs wie `*.jpg` und parallele Verarbeitung in der CLI
 - **Sammel-PDF**: mehrere Bilder (und PDF-Seiten) zu einer mehrseitigen PDF zusammenfassen
 - **EXIF-Metadaten**: automatisch korrekte Bildausrichtung, Metadaten wahlweise übernehmen, komplett entfernen oder gezielt bearbeiten (Autor, Copyright, Datum, …)
@@ -163,7 +164,8 @@ python picconverter_cli.py bild.jpg -f webp -q 85 --estimate
 | `--width` | `-w` | Breite in Pixeln¹ | `-w 1920` |
 | `--height` | | Höhe in Pixeln¹ | `--height 1080` |
 | `--page` | | PDF-Seite oder `all` (Standard: 1) | `--page all` |
-| `--dpi` | | PDF-Render-DPI (Standard: 150) | `--dpi 300` |
+| `--dpi` | | PDF-/SVG-Render-DPI (Standard: 150) | `--dpi 300` |
+| `--svg-width` | | SVG auf exakte Pixelbreite rastern | `--svg-width 1024` |
 | `--merge` | | Alles in eine PDF (nur `-f pdf`) | `--merge` |
 | `--strip-exif` | | EXIF-Metadaten entfernen | `--strip-exif` |
 | `--exif-set` | | EXIF-Feld setzen/löschen | `--exif-set Artist=Ich` |
@@ -198,6 +200,7 @@ python picconverter_cli.py bild.jpg -f webp -q 85 --estimate
 | **GIF** | ✅ | ✅ | – | – |
 | **ICO** | ✅ | ✅ | – | – |
 | **PDF** | ✅ (benötigt PyMuPDF) | ✅ | – | – |
+| **SVG** | ✅ (benötigt PyMuPDF) | – | – | – |
 | **HEIC/HEIF** | ✅ (benötigt pillow-heif) | – | – | – |
 | **AVIF** | ✅ (Pillow ≥ 11) | – | – | – |
 
@@ -207,6 +210,7 @@ python picconverter_cli.py bild.jpg -f webp -q 85 --estimate
 - **Transparenz**: JPEG, BMP und PDF unterstützen keine Transparenz — sie wird automatisch durch Weiß ersetzt
 - **EXIF**: wird in JPEG, PNG, WebP und TIFF übernommen; die Bildausrichtung (Orientation) wird beim Laden eingerechnet, damit Hochkant-Fotos korrekt bleiben
 - **Animation**: GIF↔WebP behält alle Frames; bei anderen Zielformaten wird das erste Frame verwendet (mit Hinweis)
+- **SVG**: wird als Vektor neu gezeichnet statt hochskaliert — jede Zielgröße bleibt scharf. Ohne Angabe gilt 150 DPI, `--svg-width` (CLI) bzw. die Zielbreite (GUI) rendert auf exakt diese Pixelbreite. SVGs ganz ohne Maßangaben *und* ohne `viewBox` landen mangels Größeninformation auf einer Letter-Seite
 
 ---
 
@@ -270,7 +274,7 @@ PICCONVERTER_LANG=de picconverter-gui   # oder =en
 
 Beiträge sind willkommen! Fork das Repository, erstelle einen Feature-Branch und öffne einen Pull Request. Tests laufen mit `pytest tests/`.
 
-**Feature-Ideen:** SVG-Eingabe, passwortgeschützte PDFs, Konvertierungs-Verlauf, weitere Sprachen
+**Feature-Ideen:** passwortgeschützte PDFs, Konvertierungs-Verlauf, weitere Sprachen
 
 ---
 
