@@ -1,5 +1,6 @@
 """Tests für picconverter_core"""
 
+import re
 import sys
 from pathlib import Path
 
@@ -377,3 +378,11 @@ class TestOutputStem:
 
     def test_alle_seiten_immer_suffix(self):
         assert core.output_stem(Path('doc.pdf'), page=1, all_pages=True) == 'doc_seite1'
+
+
+def test_version_in_pyproject_und_core_stimmen_ueberein():
+    """Verhindert, dass ein Release nur eine der beiden Stellen bumpt"""
+    pyproject = (Path(__file__).parent.parent / 'pyproject.toml').read_text()
+    match = re.search(r'^version\s*=\s*"([^"]+)"', pyproject, re.MULTILINE)
+    assert match, "version fehlt in pyproject.toml"
+    assert match.group(1) == core.__version__

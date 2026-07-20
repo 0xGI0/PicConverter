@@ -4,7 +4,7 @@ Alle nennenswerten Änderungen an diesem Projekt werden hier dokumentiert.
 Das Format folgt [Keep a Changelog](https://keepachangelog.com/de/), die
 Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 
-## [Unveröffentlicht]
+## [3.2.0] - 2026-07-20
 
 ### Hinzugefügt
 - **SVG als Eingabeformat** (benötigt PyMuPDF, ist bereits Abhängigkeit für
@@ -20,6 +20,9 @@ Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 ### Behoben
 - Fehlt PyMuPDF, meldete eine SVG-Eingabe „PDF-Eingabe benötigt PyMuPDF".
   Die Meldung nennt jetzt das Format, das sie ausgelöst hat
+- `--version` meldete seit 3.1.0 noch „3.0.0": der Bump hatte nur
+  `pyproject.toml` erfasst, nicht `picconverter_core.__version__`. Ein Test
+  hält beide Stellen künftig zusammen
 
 ## [3.1.0] - 2026-07-18
 
