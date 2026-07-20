@@ -17,6 +17,10 @@ Versionierung [Semantic Versioning](https://semver.org/lang/de/).
 - SVGs ohne feste Maße (`width="100%"`) werden anhand ihrer `viewBox`
   zugeschnitten, statt mit Letter-Rand herauszufallen
 
+### Behoben
+- Fehlt PyMuPDF, meldete eine SVG-Eingabe „PDF-Eingabe benötigt PyMuPDF".
+  Die Meldung nennt jetzt das Format, das sie ausgelöst hat
+
 ## [3.1.0] - 2026-07-18
 
 ### Hinzugefügt

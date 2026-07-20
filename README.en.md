@@ -73,7 +73,7 @@ This installs:
 |---------|---------|
 | `Pillow` | Image processing |
 | `PySide6` | Modern GUI (Qt) — drag & drop and HiDPI included |
-| `PyMuPDF` | PDF → image (optional — image → PDF works without it) |
+| `PyMuPDF` | PDF → image and SVG → image (optional — image → PDF works without it) |
 | `pillow-heif` | HEIC/HEIF input (optional) |
 
 **Install as a package (optional):** afterwards the commands `picconverter` and `picconverter-gui` are available system-wide:
@@ -100,7 +100,7 @@ cp assets/icon.png ~/.local/share/icons/hicolor/512x512/apps/picconverter.png
 python picconverter_gui.py        # or: picconverter-gui
 ```
 
-1. Drag images or PDFs into the window or load them via **"Select files"** — multiple files form a queue (with mini previews and ✕ to remove); for PDFs a **page navigation** appears
+1. Drag images, PDFs, or SVGs into the window or load them via **"Select files"** — multiple files form a queue (with mini previews and ✕ to remove); for PDFs a **page navigation** appears
 2. Optionally choose a **preset** or **save** the current settings as your own preset
 3. Choose the **output format** (including PDF); with PDF as target, all inputs can be **merged into one PDF**
 4. Adjust the **quality** — or set a **target size in KB** (JPEG/WebP)
@@ -130,6 +130,9 @@ python picconverter_cli.py photo.jpg -f jpg --target-size 500
 
 # Export all pages of a PDF as PNG (300 DPI)
 python picconverter_cli.py document.pdf -f png --page all --dpi 300
+
+# Rasterize an SVG at a fixed pixel width (vector stays sharp)
+python picconverter_cli.py logo.svg -f png --svg-width 1024
 
 # Merge multiple scans into one multi-page PDF
 python picconverter_cli.py scan1.png scan2.png -f pdf --merge -o document.pdf
@@ -216,7 +219,7 @@ python picconverter_cli.py photo.jpg -f png --watermark-image logo.png --waterma
 | **Python version** | 3.9+ |
 | **Architecture** | `picconverter_core` (shared logic) + CLI + GUI + `picconverter_i18n` |
 | **Image processing** | Pillow (PIL) |
-| **PDF rendering** | PyMuPDF (optional, PDF → image only) |
+| **PDF/SVG rendering** | PyMuPDF (optional, for PDF → image and SVG → image) |
 | **HEIC/HEIF** | pillow-heif (optional) |
 | **GUI framework** | PySide6 (Qt 6) — native Wayland, drag & drop and per-monitor HiDPI included |
 | **Configuration** | `~/.config/picconverter/` (presets, GUI settings) |
@@ -241,9 +244,9 @@ Qt detects the display scaling itself (on Wayland even per monitor). If the resu
 PICCONVERTER_SCALE=1.5 python picconverter_gui.py
 ```
 
-**"PDF input requires PyMuPDF"**
+**"PDF input requires PyMuPDF" / "SVG input requires PyMuPDF"**
 
-PDF → image needs the PDF renderer PyMuPDF (image → PDF works without it):
+PDF → image and SVG → image need the renderer PyMuPDF (image → PDF works without it):
 
 ```bash
 pip install pymupdf

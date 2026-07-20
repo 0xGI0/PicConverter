@@ -136,6 +136,11 @@ class TestSvg:
         assert img.getpixel((0, 0))[3] == 255      # Inhalt bis in die Ecken
         assert img.getpixel((199, 99))[3] == 255
 
+    def test_ohne_pymupdf_nennt_das_svg_format(self, svg_file, monkeypatch):
+        monkeypatch.setattr(core, 'PDF_AVAILABLE', False)
+        with pytest.raises(RuntimeError, match="SVG-Eingabe benötigt PyMuPDF"):
+            core.load_image(svg_file)
+
     def test_svg_zu_jpeg_flacht_transparenz_ab(self, svg_file, tmp_path):
         img = core.load_image(svg_file, dpi=72)
         out = tmp_path / 'kreis.jpg'

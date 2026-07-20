@@ -16,8 +16,8 @@ import os
 TRANSLATIONS = {
     'en': {
         # ---------- Core ----------
-        "PDF-Eingabe benötigt PyMuPDF. Installation: pip install pymupdf":
-            "PDF input requires PyMuPDF. Install it with: pip install pymupdf",
+        "{kind}-Eingabe benötigt PyMuPDF. Installation: pip install pymupdf":
+            "{kind} input requires PyMuPDF. Install it with: pip install pymupdf",
         "Seite {page} existiert nicht — die PDF hat {count} Seite(n)":
             "Page {page} does not exist — the PDF has {count} page(s)",
         "SVG konnte nicht gelesen werden: {name}":

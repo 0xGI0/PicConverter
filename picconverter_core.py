@@ -106,10 +106,12 @@ def is_pdf(path):
     return Path(path).suffix.lower() == '.pdf'
 
 
-def _require_pymupdf():
+def _require_pymupdf(kind='PDF'):
+    """Stellt sicher, dass PyMuPDF da ist; kind nennt das auslösende Format"""
     if not PDF_AVAILABLE:
         raise RuntimeError(
-            tr("PDF-Eingabe benötigt PyMuPDF. Installation: pip install pymupdf")
+            tr("{kind}-Eingabe benötigt PyMuPDF. Installation: pip install pymupdf")
+            .format(kind=kind)
         )
 
 
@@ -208,7 +210,7 @@ def render_svg(path, dpi=PDF_RENDER_DPI, width=None):
     Bei SVGs ohne feste Maße (width="100%") wird der Letter-Rand, den MuPDF
     darum legt, anhand der viewBox wieder weggeschnitten.
     """
-    _require_pymupdf()
+    _require_pymupdf('SVG')
     try:
         doc = pymupdf.open(path)
     except Exception as err:
