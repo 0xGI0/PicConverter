@@ -125,7 +125,7 @@ Datei von GitHub Actions aus genau diesem Repository und Commit gebaut wurde
 gh attestation verify <datei> --owner 0xGI0
 ```
 
-**PGP-Signatur prüfen (Releases nach v3.2.0):** Die Assets werden vom
+**PGP-Signatur prüfen (ab v3.2.0):** Die Assets werden vom
 Maintainer zusätzlich lokal mit PGP signiert; die Signatur hängt als
 `<datei>.asc` mit am Release. Public Key einmalig importieren:
 

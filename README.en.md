@@ -125,7 +125,7 @@ was built by GitHub Actions from exactly this repository and commit
 gh attestation verify <file> --owner 0xGI0
 ```
 
-**Verify the PGP signature (releases after v3.2.0):** The assets are
+**Verify the PGP signature (v3.2.0 and later):** The assets are
 additionally signed locally by the maintainer; the signature is attached to
 the release as `<file>.asc`. Import the public key once:
 
