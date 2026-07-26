@@ -7,6 +7,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=flat&logo=python&logoColor=white)](https://www.python.org/)
 [![Tests](https://github.com/0xGI0/PicConverter/actions/workflows/tests.yml/badge.svg)](https://github.com/0xGI0/PicConverter/actions/workflows/tests.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/0xGI0/PicConverter/badge)](https://scorecard.dev/viewer/?uri=github.com/0xGI0/PicConverter)
 [![Qt for Python](https://img.shields.io/badge/GUI-PySide6_(Qt)-2c66a8?style=flat)](https://doc.qt.io/qtforpython-6/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -146,6 +147,24 @@ Erwartet wird „Good signature from Georgios Tertlidis“ (auf deutschen System
 ```
 D251 773E 1DF7 0C1D 0476  1CB0 F92A F40D 80E8 5351
 ```
+
+---
+
+## 🛡️ Security
+
+- **Signierte Releases** — SHA-256-Checksums, Sigstore-Build-Attestierung und
+  PGP-Signaturen, prüfbar wie oben unter „Verify your download“ beschrieben
+- **SBOM je Release** — Stückliste der eingebetteten Abhängigkeiten
+  (CycloneDX-JSON) als Release-Asset
+- **CodeQL** — statische Code-Analyse (Python + Actions) je Push und wöchentlich
+- **Secret Scanning** — mit Push Protection
+- **Bandit + pip-audit** — Security-Linting und CVE-Prüfung der Abhängigkeiten
+  in jedem CI-Lauf
+- **Dependabot** — monatliche Update-PRs für pip-Abhängigkeiten und gepinnte
+  Actions
+- **OpenSSF Scorecard** — kontinuierliche Bewertung der Supply-Chain-Praxis
+  (Badge oben)
+- **Lücke gefunden?** — Meldeweg in [SECURITY.md](SECURITY.md)
 
 ---
 
