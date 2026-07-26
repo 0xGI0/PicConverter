@@ -92,6 +92,32 @@ cp assets/icon.png ~/.local/share/icons/hicolor/512x512/apps/picconverter.png
 
 ---
 
+## 🔐 Verify your download
+
+The SHA-256 checksum of every release download is listed in the release notes
+("Checksums" section) and in the `SHA256SUMS.txt` attached to the release.
+Compute the checksum of your downloaded file:
+
+```powershell
+# Windows (PowerShell)
+Get-FileHash .\<file> -Algorithm SHA256
+```
+
+```bat
+:: Windows (CMD)
+certutil -hashfile <file> SHA256
+```
+
+```bash
+# macOS / Linux
+shasum -a 256 <file>
+```
+
+If the value matches the one in the release notes, the file is intact and
+arrived unmodified.
+
+---
+
 ## 💻 Usage
 
 ### 🎨 GUI
