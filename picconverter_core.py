@@ -325,7 +325,7 @@ def read_exif(image):
         for tag, value in exif.get_ifd(ExifTags.IFD.Exif).items():
             name = ExifTags.TAGS.get(tag, f"0x{tag:04X}")
             entries.append((name, str(value)))
-    except Exception:
+    except Exception:  # nosec B110 — defekte EXIF-Daten sollen das Auslesen nicht abbrechen
         pass
     return entries
 

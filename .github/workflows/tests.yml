@@ -12,8 +12,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.12"
       # Gepinnt: 0.16.0 erweitert die Default-Regeln und bricht den Lint ohne Codeänderung
@@ -28,8 +28,8 @@ jobs:
       matrix:
         python-version: ["3.9", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: ${{ matrix.python-version }}
       - name: Abhängigkeiten installieren
@@ -38,3 +38,22 @@ jobs:
           pip install Pillow PyMuPDF pillow-heif pytest
       - name: Tests ausführen
         run: pytest tests/ -v
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - name: Security-Werkzeuge installieren
+        run: pip install bandit==1.9.4 pip-audit==2.10.1
+      # Nur ausgelieferter Code; tests/ sind nicht Teil der Binaries
+      - name: Bandit (statisches Security-Linting)
+        run: >
+          bandit picconverter_core.py picconverter_cli.py
+          picconverter_gui.py picconverter_i18n.py
+      - name: pip-audit (bekannte CVEs in Abhängigkeiten)
+        run: |
+          pip-audit -r requirements.txt
+          pip-audit -r requirements-build.txt --no-deps

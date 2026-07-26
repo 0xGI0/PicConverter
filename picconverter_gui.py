@@ -1025,8 +1025,8 @@ class PicConverterGUI(QMainWindow):
             return
         try:
             self._apply_settings(settings)
-        except Exception:
-            pass  # defekte Einstellungsdatei ignorieren
+        except Exception:  # nosec B110 — defekte Einstellungsdatei ignorieren, App startet mit Defaults
+            pass
 
     def _apply_settings(self, settings):
         """Überträgt ein Einstellungs-Dict auf die Widgets"""
@@ -1079,7 +1079,7 @@ class PicConverterGUI(QMainWindow):
         """Speichert die Einstellungen und schließt das Fenster"""
         try:
             core.save_gui_settings(self._collect_settings())
-        except Exception:
+        except Exception:  # nosec B110 — Speichern ist Best-Effort, darf das Schließen nicht blockieren
             pass
         super().closeEvent(event)
 
@@ -1094,7 +1094,7 @@ class PicConverterGUI(QMainWindow):
         self.apply_theme(self.appearance_mode)
         try:
             self._apply_settings(settings)
-        except Exception:
+        except Exception:  # nosec B110 — Einstellungs-Übertrag nach UI-Neuaufbau ist Best-Effort
             pass
         self.refresh_file_list()
         if self.input_paths:
