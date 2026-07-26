@@ -16,8 +16,9 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+      # Gepinnt: 0.16.0 erweitert die Default-Regeln und bricht den Lint ohne Codeänderung
       - name: Ruff installieren
-        run: pip install ruff
+        run: pip install ruff==0.15.22
       - name: Lint ausführen
         run: ruff check .
 
