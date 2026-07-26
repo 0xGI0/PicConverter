@@ -116,6 +116,15 @@ shasum -a 256 <file>
 If the value matches the one in the release notes, the file is intact and
 arrived unmodified.
 
+**Verify build provenance (releases after v3.2.0):** With the
+[GitHub CLI](https://cli.github.com/) you can additionally prove that the file
+was built by GitHub Actions from exactly this repository and commit
+(Sigstore attestation):
+
+```bash
+gh attestation verify <file> --owner 0xGI0
+```
+
 ---
 
 ## 💻 Usage

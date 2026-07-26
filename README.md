@@ -116,6 +116,15 @@ shasum -a 256 <datei>
 Stimmt der Wert mit dem in den Release-Notes überein, ist die Datei unverändert
 und vollständig angekommen.
 
+**Build-Herkunft prüfen (Releases nach v3.2.0):** Mit der
+[GitHub CLI](https://cli.github.com/) lässt sich zusätzlich nachweisen, dass die
+Datei von GitHub Actions aus genau diesem Repository und Commit gebaut wurde
+(Sigstore-Attestierung):
+
+```bash
+gh attestation verify <datei> --owner 0xGI0
+```
+
 ---
 
 ## 💻 Verwendung
