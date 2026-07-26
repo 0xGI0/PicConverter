@@ -125,6 +125,28 @@ was built by GitHub Actions from exactly this repository and commit
 gh attestation verify <file> --owner 0xGI0
 ```
 
+**Verify the PGP signature (releases after v3.2.0):** The assets are
+additionally signed locally by the maintainer; the signature is attached to
+the release as `<file>.asc`. Import the public key once:
+
+```bash
+curl -fsSLO https://tertlidis.com/pgp.asc
+gpg --import pgp.asc
+```
+
+Then verify the signature against your downloaded file:
+
+```bash
+gpg --verify <file>.asc <file>
+```
+
+Expect "Good signature from Georgios Tertlidis". The key fingerprint for
+cross-checking:
+
+```
+D251 773E 1DF7 0C1D 0476  1CB0 F92A F40D 80E8 5351
+```
+
 ---
 
 ## 💻 Usage

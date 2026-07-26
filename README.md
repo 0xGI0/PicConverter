@@ -125,6 +125,28 @@ Datei von GitHub Actions aus genau diesem Repository und Commit gebaut wurde
 gh attestation verify <datei> --owner 0xGI0
 ```
 
+**PGP-Signatur prüfen (Releases nach v3.2.0):** Die Assets werden vom
+Maintainer zusätzlich lokal mit PGP signiert; die Signatur hängt als
+`<datei>.asc` mit am Release. Public Key einmalig importieren:
+
+```bash
+curl -fsSLO https://tertlidis.com/pgp.asc
+gpg --import pgp.asc
+```
+
+Dann die Signatur gegen die heruntergeladene Datei prüfen:
+
+```bash
+gpg --verify <datei>.asc <datei>
+```
+
+Erwartet wird „Good signature from Georgios Tertlidis“ (auf deutschen Systemen
+„Korrekte Signatur von Georgios Tertlidis“). Der Fingerprint zum Gegenprüfen:
+
+```
+D251 773E 1DF7 0C1D 0476  1CB0 F92A F40D 80E8 5351
+```
+
 ---
 
 ## 💻 Verwendung
