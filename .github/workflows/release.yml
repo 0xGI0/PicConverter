@@ -38,6 +38,18 @@ jobs:
         with:
           name: linux-build
           path: dist/*.tar.gz
+      # SBOM aus den gepinnten Build-Abhängigkeiten — läuft als Asset in
+      # SHA256SUMS, Attestierung und Release mit
+      - name: SBOM erzeugen (CycloneDX)
+        run: |
+          pip install cyclonedx-bom==7.3.1
+          cyclonedx-py requirements requirements-build.txt \
+            --output-format JSON \
+            --output-file dist/PicConverter-${{ github.ref_name }}-sbom.cdx.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: sbom
+          path: dist/*.json
 
   build-windows:
     runs-on: windows-latest
