@@ -20,6 +20,6 @@ Pillow==12.3.0
 PySide6==6.11.1
 shiboken6==6.11.1                    # muss exakt zur PySide6-Version passen
 PyMuPDF==1.28.0
-pillow-heif==1.4.0
+pillow-heif==1.5.0
 pyinstaller==6.21.0
 pyinstaller-hooks-contrib==2026.6    # bestimmt, welche Qt-Plugins eingesammelt werden
